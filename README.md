@@ -9,9 +9,12 @@ CLI tool for translating `.po` files using any OpenAI-compatible backend (local 
 
 ## Setup
 
+Install via [pipx](https://pipx.pypa.io) for a global `glot` command available from any directory:
+
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+brew install pipx
+pipx ensurepath
+pipx install -e /path/to/glot-cli
 ```
 
 ## Environment variables
@@ -32,7 +35,7 @@ python3 -m venv .venv
 ### Translate a .po file
 
 ```bash
-.venv/bin/python glot.py translate path/to/file.po --lang ne_NP
+glot translate path/to/file.po --lang ne_NP
 ```
 
 - Only untranslated entries are touched.
@@ -50,10 +53,10 @@ Options:
 
 ```bash
 # Download glossary from translate.wordpress.org
-.venv/bin/python glot.py glossary pull ne_NP
+glot glossary pull ne_NP
 
 # List downloaded glossaries
-.venv/bin/python glot.py glossary list
+glot glossary list
 ```
 
 Glossary files are stored at `$GLOT_DATA_DIR/glossary/<locale>.tsv` (default: `~/.config/glot-cli/glossary/<locale>.tsv`). When present, matching terms are enforced for consistency.
