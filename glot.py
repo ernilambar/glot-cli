@@ -198,7 +198,7 @@ def build_review_prompt(msgids: list) -> str:
         "Flag only these issues:\n"
         "1. Hardcoded number or count that should use %d (e.g., \"Showing 5 results\")\n"
         "2. Hardcoded version number, date, or date format that should use %s\n"
-        "3. Hardcoded file name, file path, URL, or email address that should use %s\n"
+        "3. Hardcoded file name or file path that should use %s; or a URL/email embedded within other text — do NOT flag a string whose entire content is a URL or email\n"
         "4. String that is clearly not user-facing (raw error codes, debug output, code snippets)\n\n"
         "Return ONLY a JSON object mapping string numbers (as strings) to a short issue description. "
         "Include only strings with issues. Return {} if all strings are fine. No explanation outside the JSON.\n\n"
