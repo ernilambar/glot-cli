@@ -1,4 +1,8 @@
 import pytest
+import polib
+import requests
+from unittest.mock import patch, Mock
+
 import glot
 
 
@@ -184,3 +188,178 @@ msgstr "अस्पष्ट"
         args = type("Args", (), {"input": "/nonexistent/file.po", "lang": None})()
         with pytest.raises(SystemExit):
             glot.cmd_status(args)
+
+    def test_unreadable_file_exits(self, po_file):
+        args = type("Args", (), {"input": po_file, "lang": None})()
+        with patch("glot.polib.pofile", side_effect=PermissionError("Permission denied")):
+            with pytest.raises(SystemExit):
+                glot.cmd_status(args)
+
+
+# ---------------------------------------------------------------------------
+# call_ai_translate
+# ---------------------------------------------------------------------------
+
+class TestCallAiTranslate:
+    def _make_response(self, content, status_code=200):
+        r = Mock()
+        r.status_code = status_code
+        r.json.return_value = {"choices": [{"message": {"content": content}}]}
+        r.raise_for_status = Mock()
+        return r
+
+    def test_returns_ai_content(self):
+        with patch("glot.requests.post", return_value=self._make_response("नमस्ते")), \
+             patch("glot.GLOT_ENDPOINT_URL", "http://fake/v1/chat"), \
+             patch("glot.GLOT_MODEL_ID", "test-model"):
+            assert glot.call_ai_translate("Translate: Hello") == "नमस्ते"
+
+    def test_sends_system_prompt_as_system_message(self):
+        with patch("glot.requests.post", return_value=self._make_response("ok")) as mock_post, \
+             patch("glot.GLOT_ENDPOINT_URL", "http://fake/v1/chat"), \
+             patch("glot.GLOT_MODEL_ID", "test-model"):
+            glot.call_ai_translate("prompt", system_prompt="You are a translator.")
+        messages = mock_post.call_args.kwargs["json"]["messages"]
+        assert messages[0] == {"role": "system", "content": "You are a translator."}
+
+    def test_retries_on_429(self):
+        rate_limit = Mock()
+        rate_limit.status_code = 429
+        success = self._make_response("संसार")
+
+        with patch("glot.requests.post", side_effect=[rate_limit, success]), \
+             patch("glot.GLOT_ENDPOINT_URL", "http://fake/v1/chat"), \
+             patch("glot.GLOT_MODEL_ID", "test-model"), \
+             patch("time.sleep"):
+            assert glot.call_ai_translate("Translate: World") == "संसार"
+
+    def test_http_error_raises(self):
+        r = Mock()
+        r.status_code = 500
+        r.raise_for_status.side_effect = requests.HTTPError("500 Server Error")
+
+        with patch("glot.requests.post", return_value=r), \
+             patch("glot.GLOT_ENDPOINT_URL", "http://fake/v1/chat"), \
+             patch("glot.GLOT_MODEL_ID", "test-model"):
+            with pytest.raises(requests.HTTPError):
+                glot.call_ai_translate("Translate: Error")
+
+
+# ---------------------------------------------------------------------------
+# cmd_translate
+# ---------------------------------------------------------------------------
+
+class TestCmdTranslate:
+    _PO_UNTRANSLATED = """\
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\\n"
+
+msgid "Hello"
+msgstr ""
+
+msgid "World"
+msgstr ""
+"""
+
+    @pytest.fixture
+    def po_file(self, tmp_path):
+        f = tmp_path / "test.po"
+        f.write_text(self._PO_UNTRANSLATED, encoding="utf-8")
+        return str(f)
+
+    def test_missing_env_vars_exits(self, po_file):
+        args = type("Args", (), {"input": po_file, "lang": "ne_NP", "limit": 0})()
+        with patch("glot.GLOT_ENDPOINT_URL", None), patch("glot.GLOT_MODEL_ID", None):
+            with pytest.raises(SystemExit):
+                glot.cmd_translate(args)
+
+    def test_missing_file_exits(self):
+        args = type("Args", (), {"input": "/no/such/file.po", "lang": "ne_NP", "limit": 0})()
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), patch("glot.GLOT_MODEL_ID", "m"):
+            with pytest.raises(SystemExit):
+                glot.cmd_translate(args)
+
+    def test_nothing_to_do_when_fully_translated(self, tmp_path, capsys):
+        content = (
+            'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\n'
+            'msgid "Hello"\nmsgstr "नमस्ते"\n'
+        )
+        f = tmp_path / "done.po"
+        f.write_text(content, encoding="utf-8")
+        args = type("Args", (), {"input": str(f), "lang": "ne_NP", "limit": 0})()
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), patch("glot.GLOT_MODEL_ID", "m"):
+            glot.cmd_translate(args)
+        assert "Nothing to do" in capsys.readouterr().out
+
+    def test_ai_translations_written_to_file(self, po_file, capsys):
+        args = type("Args", (), {"input": po_file, "lang": "ne_NP", "limit": 0})()
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.call_ai_translate", return_value='{"1": "नमस्ते", "2": "संसार"}'):
+            glot.cmd_translate(args)
+        po = polib.pofile(po_file)
+        strings = {e.msgid: e.msgstr for e in po}
+        assert strings["Hello"] == "नमस्ते"
+        assert strings["World"] == "संसार"
+
+    def test_unreadable_po_exits(self, po_file):
+        args = type("Args", (), {"input": po_file, "lang": "ne_NP", "limit": 0})()
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.polib.pofile", side_effect=PermissionError("Permission denied")):
+            with pytest.raises(SystemExit):
+                glot.cmd_translate(args)
+
+    def test_unwritable_po_exits(self, po_file):
+        import os
+        if os.getuid() == 0:
+            pytest.skip("chmod has no effect as root")
+        os.chmod(po_file, 0o444)
+        args = type("Args", (), {"input": po_file, "lang": "ne_NP", "limit": 0})()
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.call_ai_translate", return_value='{"1": "नमस्ते", "2": "संसार"}'):
+            with pytest.raises(SystemExit):
+                glot.cmd_translate(args)
+
+    def test_core_cache_skips_ai(self, po_file, capsys):
+        core = {"Hello": "नमस्ते", "World": "संसार"}
+        args = type("Args", (), {"input": po_file, "lang": "ne_NP", "limit": 0})()
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.load_core_translations", return_value=core), \
+             patch("glot.call_ai_translate") as mock_ai:
+            glot.cmd_translate(args)
+        mock_ai.assert_not_called()
+        assert "Core matches: 2" in capsys.readouterr().out
+
+    def test_negative_limit_exits(self, po_file):
+        args = type("Args", (), {"input": po_file, "lang": "ne_NP", "limit": -1})()
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), patch("glot.GLOT_MODEL_ID", "m"):
+            with pytest.raises(SystemExit):
+                glot.cmd_translate(args)
+
+    def test_invalid_po_file_exits(self, tmp_path):
+        f = tmp_path / "not_a_po.txt"
+        f.write_text("this is not a po file\njust plain text\n", encoding="utf-8")
+        args = type("Args", (), {"input": str(f), "lang": "ne_NP", "limit": 0})()
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), patch("glot.GLOT_MODEL_ID", "m"):
+            with pytest.raises(SystemExit):
+                glot.cmd_translate(args)
+
+
+# ---------------------------------------------------------------------------
+# cmd_glossary_pull / cmd_core_pull — locale validation
+# ---------------------------------------------------------------------------
+
+class TestLocaleValidation:
+    def test_glossary_pull_no_locale_exits(self):
+        args = type("Args", (), {"locale": None})()
+        with pytest.raises(SystemExit):
+            glot.cmd_glossary_pull(args)
+
+    def test_core_pull_no_locale_exits(self):
+        args = type("Args", (), {"locale": None})()
+        with pytest.raises(SystemExit):
+            glot.cmd_core_pull(args)
