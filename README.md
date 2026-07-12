@@ -69,3 +69,15 @@ Glossary files are stored at `$GLOT_DATA_DIR/glossary/<locale>.tsv` (default: `~
 
 Place a file at `$GLOT_DATA_DIR/prompts/<locale>.md` (default: `~/.config/glot-cli/prompts/<locale>.md`) to override the default prompt for a locale.
 
+## Contributing
+
+Bug reports and pull requests are welcome on [GitHub](https://github.com/ernilambar/glot-cli).
+
+1. Fork the repo and create your branch from `main`.
+2. Make your changes and test locally.
+3. Open a pull request with a clear description of what changed and why.
+
+## License
+
+[MIT](LICENSE)
+
