@@ -1,6 +1,8 @@
 # glot-cli
 
-CLI tool for translating `.po` files using any OpenAI-compatible backend (local or remote).
+CLI tool for translating WordPress `.po` files using any OpenAI-compatible backend (local or remote).
+
+Designed for WordPress translators — respects WordPress UI conventions, placeholder syntax, and pulls glossaries directly from translate.wordpress.org.
 
 ## Requirements
 

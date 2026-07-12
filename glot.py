@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-glot - CLI tool for translating .po files using any OpenAI-compatible backend.
+glot - CLI tool for translating WordPress .po files using any OpenAI-compatible backend.
 
 Author: Nilambar Sharma
 Repo:   https://github.com/ernilambar/glot-cli
@@ -368,7 +368,7 @@ def cmd_glossary_pull(args):
 def main():
     parser = argparse.ArgumentParser(
         prog="glot",
-        description="Translate .po files using any OpenAI-compatible backend.",
+        description="Translate WordPress .po files using any OpenAI-compatible backend.",
     )
     try:
         _version = version("glot-cli")

@@ -5,7 +5,7 @@ build-backend = "setuptools.backends.legacy:build"
 [project]
 name = "glot-cli"
 version = "0.1.0"
-description = "CLI tool for translating .po files using any OpenAI-compatible backend"
+description = "CLI tool for translating WordPress .po files using any OpenAI-compatible backend"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
