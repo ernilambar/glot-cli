@@ -110,6 +110,26 @@ def matching_glossary_terms(text: str, glossary: dict, index: dict) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Language list
+# ---------------------------------------------------------------------------
+
+_LANGUAGES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "languages.json")
+
+
+def load_valid_languages() -> dict:
+    if not os.path.exists(_LANGUAGES_FILE):
+        return {}
+    with open(_LANGUAGES_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def validate_lang(lang: str) -> None:
+    languages = load_valid_languages()
+    if languages and lang not in languages:
+        print(f"Error: unknown locale '{lang}'.", file=sys.stderr)
+        sys.exit(1)
+
+
 # Core translations
 # ---------------------------------------------------------------------------
 
@@ -240,6 +260,8 @@ def cmd_translate(args):
         print(f"Error: required environment variable(s) not set: {', '.join(missing_env)}", file=sys.stderr)
         sys.exit(1)
 
+    validate_lang(args.lang)
+
     if not os.path.exists(args.input):
         print(f"Error: file not found: {args.input}", file=sys.stderr)
         sys.exit(1)
@@ -361,6 +383,9 @@ def cmd_translate(args):
 
 
 def cmd_status(args):
+    if args.lang:
+        validate_lang(args.lang)
+
     if not os.path.exists(args.input):
         print(f"Error: file not found: {args.input}", file=sys.stderr)
         sys.exit(1)
@@ -419,6 +444,7 @@ def cmd_glossary_pull(args):
     if not args.locale:
         print("Error: locale is required (or set GLOT_LANG env variable)", file=sys.stderr)
         sys.exit(1)
+    validate_lang(args.locale)
     locale = args.locale
     parts  = locale.split("_")
 
@@ -477,6 +503,7 @@ def cmd_core_pull(args):
     if not args.locale:
         print("Error: locale is required (or set GLOT_LANG env variable)", file=sys.stderr)
         sys.exit(1)
+    validate_lang(args.locale)
     locale = args.locale
     parts  = locale.split("_")
     full_slug = locale.replace("_", "-").lower()
