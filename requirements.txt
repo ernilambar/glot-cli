@@ -1,2 +1,2 @@
-polib
-requests
+polib      # PO file parsing
+requests   # HTTP client
