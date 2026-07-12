@@ -249,7 +249,11 @@ def cmd_translate(args):
     system_prompt  = load_system_prompt(args.lang)
     core           = load_core_translations(args.lang)
 
-    po      = polib.pofile(args.input)
+    try:
+        po = polib.pofile(args.input)
+    except OSError as e:
+        print(f"Error: cannot read file: {e}", file=sys.stderr)
+        sys.exit(1)
     missing = [e for e in po if not e.translated()]
 
     if not missing:
@@ -284,6 +288,9 @@ def cmd_translate(args):
         shutil.copy(args.input, backup_path)
         print(f"Backup created: {backup_path}")
 
+    if args.limit < 0:
+        print("Error: --limit must be a non-negative integer", file=sys.stderr)
+        sys.exit(1)
     limit = args.limit or MAX_STRINGS_PER_RUN
     capped = len(missing) > limit
     batch  = missing[:limit]
@@ -333,7 +340,11 @@ def cmd_translate(args):
     for entry, translation in results.values():
         entry.msgstr = translation
 
-    po.save(args.input)
+    try:
+        po.save(args.input)
+    except OSError as e:
+        print(f"Error: cannot write file: {e}", file=sys.stderr)
+        sys.exit(1)
 
     translated = len(batch) - len(failed)
     print(f"\nSaved: {args.input}")
@@ -354,7 +365,11 @@ def cmd_status(args):
         print(f"Error: file not found: {args.input}", file=sys.stderr)
         sys.exit(1)
 
-    po           = polib.pofile(args.input)
+    try:
+        po = polib.pofile(args.input)
+    except OSError as e:
+        print(f"Error: cannot read file: {e}", file=sys.stderr)
+        sys.exit(1)
     total        = len(po)
     translated   = len(po.translated_entries())
     untranslated = len(po.untranslated_entries())
@@ -402,8 +417,8 @@ def cmd_glossary_list(args):
 
 def cmd_glossary_pull(args):
     if not args.locale:
-        print("Error: locale is required (or set GLOT_LANG env variable)")
-        return
+        print("Error: locale is required (or set GLOT_LANG env variable)", file=sys.stderr)
+        sys.exit(1)
     locale = args.locale
     parts  = locale.split("_")
 
@@ -460,8 +475,8 @@ def cmd_glossary_pull(args):
 
 def cmd_core_pull(args):
     if not args.locale:
-        print("Error: locale is required (or set GLOT_LANG env variable)")
-        return
+        print("Error: locale is required (or set GLOT_LANG env variable)", file=sys.stderr)
+        sys.exit(1)
     locale = args.locale
     parts  = locale.split("_")
     full_slug = locale.replace("_", "-").lower()
