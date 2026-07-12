@@ -42,6 +42,7 @@ glot translate path/to/file.po --lang ne_NP
 ```
 
 - Only untranslated entries are touched.
+- Strings found in the core translation cache are applied directly — no AI call for those.
 - A `.bak` backup is created before the first write.
 - If the file has more strings than `GLOT_MAX_STRINGS`, run again to continue.
 
@@ -51,6 +52,23 @@ Options:
 --lang   Target language code, e.g. ne_NP. Overrides GLOT_LANG. Required if GLOT_LANG is not set.
 --limit  Max strings this run, overrides GLOT_MAX_STRINGS
 ```
+
+### Manage core translation cache
+
+Download approved translations from WordPress core. These are applied before any AI call — strings found in core are used verbatim, bypassing the AI entirely.
+
+```bash
+# Download core translations from translate.wordpress.org
+glot core pull ne_NP
+
+# Omit locale if GLOT_LANG is set
+glot core pull
+
+# List downloaded core translation files
+glot core list
+```
+
+Core translation files are stored at `$GLOT_DATA_DIR/core/<locale>.json` (default: `~/.config/glot-cli/core/<locale>.json`). Covers all three WP core projects: `wp/dev`, `wp/dev/admin`, and `wp/dev/admin/network`.
 
 ### Manage glossaries
 

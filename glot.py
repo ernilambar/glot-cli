@@ -9,10 +9,12 @@ Repo:   https://github.com/ernilambar/glot-cli
 import argparse
 import csv
 from importlib.metadata import version, PackageNotFoundError
+import json
 import os
 import re
 import shutil
 import sys
+import tempfile
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -37,6 +39,13 @@ _default_data_dir = os.path.join(os.path.expanduser("~"), ".config", "glot-cli")
 GLOT_DATA_DIR = os.environ.get("GLOT_DATA_DIR", _default_data_dir)
 GLOSSARY_DIR  = os.path.join(GLOT_DATA_DIR, "glossary")
 PROMPTS_DIR   = os.path.join(GLOT_DATA_DIR, "prompts")
+CORE_DIR      = os.path.join(GLOT_DATA_DIR, "core")
+
+CORE_PROJECTS = [
+    "wp/dev/{slug}/default",
+    "wp/dev/admin/{slug}/default",
+    "wp/dev/admin/network/{slug}/default",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +101,18 @@ def matching_glossary_terms(text: str, glossary: dict, index: dict) -> list:
             if words[i:i + len(term_words)] == term_words:
                 matched.add(term)
     return [(term, glossary[term]) for term in matched]
+
+
+# ---------------------------------------------------------------------------
+# Core translations
+# ---------------------------------------------------------------------------
+
+def load_core_translations(locale: str) -> dict:
+    path = os.path.join(CORE_DIR, f"{locale}.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +224,7 @@ def cmd_translate(args):
     glossary       = load_glossary(args.lang)
     glossary_index = build_glossary_index(glossary)
     system_prompt  = load_system_prompt(args.lang)
+    core           = load_core_translations(args.lang)
 
     po      = polib.pofile(args.input)
     missing = [e for e in po if not e.translated()]
@@ -211,11 +233,28 @@ def cmd_translate(args):
         print("Nothing to do. File is already fully translated.")
         return
 
-    print(f"Found {len(missing)} untranslated string(s).")
+    core_hits = 0
+    if core:
+        for entry in missing:
+            key = f"{entry.msgctxt}\x04{entry.msgid}" if entry.msgctxt else entry.msgid
+            if key in core:
+                entry.msgstr = core[key]
+                core_hits += 1
+        missing = [e for e in missing if not e.translated()]
+
+    print(f"Found {len(missing) + core_hits} untranslated string(s).")
+    if core_hits:
+        print(f"Core matches: {core_hits} (skipped AI)")
     if glossary:
         print(f"Glossary loaded: {len(glossary)} terms ({args.lang})")
     if system_prompt:
         print("Custom system prompt loaded.")
+
+    if not missing:
+        po.save(args.input)
+        print(f"\nSaved: {args.input}")
+        print(f"Translated: {core_hits}  Failed: 0")
+        return
 
     backup_path = args.input + ".bak"
     if not os.path.exists(backup_path):
@@ -362,6 +401,111 @@ def cmd_glossary_pull(args):
 
 
 # ---------------------------------------------------------------------------
+# Core commands
+# ---------------------------------------------------------------------------
+
+def cmd_core_pull(args):
+    if not args.locale:
+        print("Error: locale is required (or set GLOT_LANG env variable)")
+        return
+    locale = args.locale
+    parts  = locale.split("_")
+    full_slug = locale.replace("_", "-").lower()
+    lang_only = parts[0].lower()
+    slug_candidates = [full_slug] if full_slug == lang_only else [full_slug, lang_only]
+
+    base = "https://translate.wordpress.org/projects"
+
+    # detect working slug using the first project
+    first_text  = None
+    working_slug = None
+    for slug in slug_candidates:
+        url = f"{base}/{CORE_PROJECTS[0].format(slug=slug)}/export-translations/?format=po"
+        print(f"Trying: {url}")
+        r = requests.get(url, timeout=60, headers={"User-Agent": "glot-cli/1.0"})
+        if r.status_code == 200:
+            working_slug = slug
+            first_text   = r.text
+            break
+
+    if not working_slug:
+        print(f"Error: could not fetch core translations for '{locale}'.", file=sys.stderr)
+        sys.exit(1)
+
+    def fetch_po_text(url):
+        r = requests.get(url, timeout=60, headers={"User-Agent": "glot-cli/1.0"})
+        if r.status_code != 200:
+            return None
+        return r.text
+
+    remaining_urls = [
+        f"{base}/{t.format(slug=working_slug)}/export-translations/?format=po"
+        for t in CORE_PROJECTS[1:]
+    ]
+    po_texts = [first_text]
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        for text in ex.map(fetch_po_text, remaining_urls):
+            po_texts.append(text)
+
+    def parse_po_text(text):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".po", delete=False, encoding="utf-8") as tmp:
+            tmp.write(text)
+            tmp_path = tmp.name
+        try:
+            return polib.pofile(tmp_path)
+        finally:
+            os.unlink(tmp_path)
+
+    labels = ["wp/dev", "wp/dev/admin", "wp/dev/admin/network"]
+    index  = {}
+    for label, text in zip(labels, po_texts):
+        if text is None:
+            print(f"  {label}: skipped (not available)")
+            continue
+        po    = parse_po_text(text)
+        count = 0
+        for e in po:
+            if not e.translated():
+                continue
+            key = f"{e.msgctxt}\x04{e.msgid}" if e.msgctxt else e.msgid
+            index[key] = e.msgstr
+            count += 1
+        print(f"  {label}: {count} strings")
+
+    os.makedirs(CORE_DIR, exist_ok=True)
+    dest = os.path.join(CORE_DIR, f"{locale}.json")
+    with open(dest, "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False)
+
+    print(f"Saved {len(index)} entries to {dest}")
+
+
+def cmd_core_list(args):
+    import glob
+    import datetime
+
+    if not os.path.isdir(CORE_DIR):
+        print(f"Core directory not found: {CORE_DIR}")
+        return
+
+    files = sorted(glob.glob(os.path.join(CORE_DIR, "*.json")))
+    if not files:
+        print("No core translation files found.")
+        return
+
+    print(f"Data dir: {GLOT_DATA_DIR}\n")
+    print(f"{'LOCALE':<12}  {'LAST UPDATED':<12}  ENTRIES")
+    print(f"{'------------':<12}  {'------------':<12}  -------")
+
+    for f in files:
+        locale = os.path.splitext(os.path.basename(f))[0]
+        mtime  = datetime.datetime.fromtimestamp(os.path.getmtime(f))
+        with open(f, encoding="utf-8") as fh:
+            data = json.load(fh)
+        print(f"{locale:<12}  {mtime.strftime('%Y-%m-%d'):<12}  {len(data)}")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -392,6 +536,15 @@ def main():
     p_pull = gl_sub.add_parser("pull", help="Download a glossary from translate.wordpress.org.")
     p_pull.add_argument("locale", nargs="?", default=os.environ.get("GLOT_LANG"), help="Locale code, e.g. ne_NP. Defaults to GLOT_LANG.")
 
+    # core
+    p_core = sub.add_parser("core", help="Manage core translation cache.")
+    core_sub = p_core.add_subparsers(dest="core_command", required=True)
+
+    core_sub.add_parser("list", help="List available core translation files.")
+
+    p_core_pull = core_sub.add_parser("pull", help="Download core translations from translate.wordpress.org.")
+    p_core_pull.add_argument("locale", nargs="?", default=os.environ.get("GLOT_LANG"), help="Locale code, e.g. ne_NP. Defaults to GLOT_LANG.")
+
     args = parser.parse_args()
 
     if args.command == "translate":
@@ -403,6 +556,11 @@ def main():
             cmd_glossary_list(args)
         elif args.glossary_command == "pull":
             cmd_glossary_pull(args)
+    elif args.command == "core":
+        if args.core_command == "list":
+            cmd_core_list(args)
+        elif args.core_command == "pull":
+            cmd_core_pull(args)
 
 
 if __name__ == "__main__":
