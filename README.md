@@ -43,7 +43,6 @@ Options:
 
 ```
 --lang   Target language code (default: ne_NP)
---tone   Translation register: formal, informal (default: formal)
 --limit  Max strings this run, overrides GLOT_MAX_STRINGS
 ```
 

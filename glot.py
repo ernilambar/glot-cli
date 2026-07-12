@@ -105,7 +105,7 @@ def load_system_prompt(target_lang: str) -> str | None:
         return f.read().strip()
 
 
-def build_batch_prompt(items: list, target_lang: str, tone: str, system_prompt: str | None) -> str:
+def build_batch_prompt(items: list, target_lang: str, system_prompt: str | None) -> str:
     seen_terms = {}
     for _, matches in items:
         for term, info in matches:
@@ -133,8 +133,7 @@ def build_batch_prompt(items: list, target_lang: str, tone: str, system_prompt: 
 
         return (
             f"Translate each numbered English UI string into {target_lang}. "
-            f"Always use a {tone} register -- never casual or colloquial, unless "
-            f"explicitly instructed otherwise. Preserve any placeholders "
+            f"Preserve any placeholders "
             f"(such as %s, %(name)s, {{variable}}, <b>, etc.) exactly as-is. "
             f"Return ONLY a numbered list with translations, one per line, "
             f"with no explanation or extra text.{glossary_block}\n\n{numbered}"
@@ -233,7 +232,7 @@ def cmd_translate(args):
             (e.msgid, matching_glossary_terms(e.msgid, glossary, glossary_index))
             for e in chunk
         ]
-        prompt   = build_batch_prompt(items, args.lang, args.tone, system_prompt)
+        prompt   = build_batch_prompt(items, args.lang, system_prompt)
         response = call_ai_translate(prompt, system_prompt)
         return idx, chunk, parse_batch_response(response, len(chunk))
 
@@ -370,7 +369,6 @@ def main():
     p_tr = sub.add_parser("translate", help="Translate missing entries in a .po file.")
     p_tr.add_argument("input", help="Path to the .po file.")
     p_tr.add_argument("--lang",  default="ne_NP", help="Target language code (default: ne_NP).")
-    p_tr.add_argument("--tone",  default="formal", help="Translation register (default: formal).")
     p_tr.add_argument("--limit", type=int, default=0, help="Max strings to translate this run (0 = use GLOT_MAX_STRINGS).")
 
     # glossary
