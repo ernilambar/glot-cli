@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 import polib
+from tabulate import tabulate
 
 try:
     import argcomplete
@@ -432,6 +433,23 @@ def _output_review_report(report: list, total: int, fmt: str) -> None:
             writer.writerow({**item, "occurrences": "; ".join(item["occurrences"])})
         return
 
+    if fmt == "table":
+        if not report:
+            print("\nNo issues found.")
+            return
+        rows = [
+            [
+                item["num"],
+                item["msgid"][:80] + ("..." if len(item["msgid"]) > 80 else ""),
+                "\n".join(item["occurrences"]) if item["occurrences"] else "—",
+                item["issue"],
+            ]
+            for item in report
+        ]
+        print(tabulate(rows, headers=["#", "String", "Location", "Issue"], tablefmt="simple"))
+        print(f"\nTotal: {len(report)} issue(s) in {total} string(s)")
+        return
+
     # text (default)
     if not report:
         print("\nNo issues found.")
@@ -468,7 +486,10 @@ def cmd_review(args):
         print("No strings found.", file=sys.stderr)
         return
 
-    print(f"Reviewing {len(entries)} string(s) in {args.input} ...\n", file=sys.stderr)
+    machine_fmt = args.format in ("json", "csv", "markdown")
+
+    if not machine_fmt:
+        print(f"Reviewing {len(entries)} string(s) in {args.input} ...\n", file=sys.stderr)
 
     # Static check: placeholder without translator comment
     placeholder_re = re.compile(r'%(\d+\$)?[sd]')
@@ -503,9 +524,11 @@ def cmd_review(args):
                             ai_issues[offset + local_idx] = v
                     except (ValueError, TypeError):
                         pass
-                print(f"  Batch {batch_idx + 1}/{len(chunks)}: done  [{completed}/{len(chunks)}]", file=sys.stderr)
+                if not machine_fmt:
+                    print(f"  Batch {batch_idx + 1}/{len(chunks)}: done  [{completed}/{len(chunks)}]", file=sys.stderr)
             except Exception as e:
-                print(f"  Batch {batch_idx + 1}/{len(chunks)}: FAILED — {e}  [{completed}/{len(chunks)}]", file=sys.stderr)
+                if not machine_fmt:
+                    print(f"  Batch {batch_idx + 1}/{len(chunks)}: FAILED — {e}  [{completed}/{len(chunks)}]", file=sys.stderr)
 
     all_issues = {**static_issues}
     for idx, issue in ai_issues.items():
@@ -771,7 +794,7 @@ def main():
     # review
     p_rv = sub.add_parser("review", help="Review strings in a .po/.pot file for i18n issues.")
     p_rv.add_argument("input", help="Path to the .po or .pot file.")
-    p_rv.add_argument("--format", choices=["text", "json", "csv", "markdown"], default="text", help="Output format (default: text).")
+    p_rv.add_argument("--format", choices=["text", "table", "json", "csv", "markdown"], default="text", help="Output format (default: text).")
 
     # status
     p_st = sub.add_parser("status", help="Show translation progress for a .po file.")

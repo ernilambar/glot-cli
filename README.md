@@ -80,7 +80,7 @@ Total: 1 issue(s) in 45 string(s)
 ```
 
 ```
---format   Output format: text (default), json, csv, markdown
+--format   Output format: text (default), table, json, csv, markdown
 ```
 
 ### Check translation status
