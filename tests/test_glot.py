@@ -359,7 +359,66 @@ class TestLocaleValidation:
         with pytest.raises(SystemExit):
             glot.cmd_glossary_pull(args)
 
+    def test_glossary_pull_invalid_locale_exits(self):
+        args = type("Args", (), {"locale": "xx_XX"})()
+        with patch("glot.load_valid_languages", return_value=_FAKE_LANGUAGES):
+            with pytest.raises(SystemExit):
+                glot.cmd_glossary_pull(args)
+
     def test_core_pull_no_locale_exits(self):
         args = type("Args", (), {"locale": None})()
         with pytest.raises(SystemExit):
             glot.cmd_core_pull(args)
+
+    def test_core_pull_invalid_locale_exits(self):
+        args = type("Args", (), {"locale": "xx_XX"})()
+        with patch("glot.load_valid_languages", return_value=_FAKE_LANGUAGES):
+            with pytest.raises(SystemExit):
+                glot.cmd_core_pull(args)
+
+
+# ---------------------------------------------------------------------------
+# validate_lang
+# ---------------------------------------------------------------------------
+
+_FAKE_LANGUAGES = {"ne_NP": "Nepali", "es_ES": "Spanish (Spain)"}
+
+
+class TestValidateLang:
+    def test_valid_lang_passes(self):
+        with patch("glot.load_valid_languages", return_value=_FAKE_LANGUAGES):
+            glot.validate_lang("ne_NP")  # must not raise or exit
+
+    def test_invalid_lang_exits(self):
+        with patch("glot.load_valid_languages", return_value=_FAKE_LANGUAGES):
+            with pytest.raises(SystemExit):
+                glot.validate_lang("xx_XX")
+
+    def test_skipped_when_language_file_missing(self):
+        with patch("glot.load_valid_languages", return_value={}):
+            glot.validate_lang("xx_XX")  # no file → no validation → no exit
+
+    def test_cmd_translate_rejects_invalid_lang(self, tmp_path):
+        f = tmp_path / "test.po"
+        f.write_text('msgid ""\nmsgstr ""\n', encoding="utf-8")
+        args = type("Args", (), {"input": str(f), "lang": "xx_XX", "limit": 0})()
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.load_valid_languages", return_value=_FAKE_LANGUAGES):
+            with pytest.raises(SystemExit):
+                glot.cmd_translate(args)
+
+    def test_cmd_status_rejects_invalid_lang(self, tmp_path):
+        f = tmp_path / "test.po"
+        f.write_text('msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n', encoding="utf-8")
+        args = type("Args", (), {"input": str(f), "lang": "xx_XX"})()
+        with patch("glot.load_valid_languages", return_value=_FAKE_LANGUAGES):
+            with pytest.raises(SystemExit):
+                glot.cmd_status(args)
+
+    def test_cmd_status_skips_validation_when_no_lang(self, tmp_path):
+        f = tmp_path / "test.po"
+        f.write_text('msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n', encoding="utf-8")
+        args = type("Args", (), {"input": str(f), "lang": None})()
+        with patch("glot.load_valid_languages", return_value=_FAKE_LANGUAGES):
+            glot.cmd_status(args)  # no --lang → no validation → no exit
