@@ -31,7 +31,7 @@ MAX_STRINGS_PER_RUN  = int(os.environ.get("GLOT_MAX_STRINGS", "200"))
 GLOT_BATCH_SIZE      = int(os.environ.get("GLOT_BATCH_SIZE", "10"))
 GLOT_CONCURRENCY     = int(os.environ.get("GLOT_CONCURRENCY", "1"))
 _timeout_env         = os.environ.get("GLOT_REQUEST_TIMEOUT")
-GLOT_REQUEST_TIMEOUT = int(_timeout_env) if _timeout_env else None  # None = wait forever
+GLOT_REQUEST_TIMEOUT = int(_timeout_env) if _timeout_env is not None else 120
 
 _default_data_dir = os.path.join(os.path.expanduser("~"), ".config", "glot-cli")
 GLOT_DATA_DIR = os.environ.get("GLOT_DATA_DIR", _default_data_dir)

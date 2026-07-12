@@ -29,7 +29,7 @@ pipx install -e /path/to/glot-cli
 | `GLOT_MAX_STRINGS` | No | Max strings per run (default: `200`) |
 | `GLOT_BATCH_SIZE` | No | Strings per API call (default: `10`) |
 | `GLOT_CONCURRENCY` | No | Parallel API calls (default: `1`, increase for remote APIs) |
-| `GLOT_REQUEST_TIMEOUT` | No | Seconds before HTTP timeout (default: none — waits forever) |
+| `GLOT_REQUEST_TIMEOUT` | No | Seconds before HTTP timeout (default: `120`, set to `0` to disable) |
 
 ## Usage
 
