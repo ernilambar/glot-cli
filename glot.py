@@ -191,6 +191,30 @@ def build_batch_prompt(items: list, target_lang: str, system_prompt: str | None)
         )
 
 
+def build_review_prompt(msgids: list) -> str:
+    numbered = "\n".join(f"{i + 1}. {msgid}" for i, msgid in enumerate(msgids))
+    return (
+        "You are a WordPress i18n quality reviewer. Analyze each numbered English string for i18n violations.\n\n"
+        "Flag only these issues:\n"
+        "1. Hardcoded number or count that should use %d (e.g., \"Showing 5 results\")\n"
+        "2. Hardcoded version number, date, or date format that should use %s\n"
+        "3. Hardcoded file name, file path, URL, or email address that should use %s\n"
+        "4. String that is clearly not user-facing (raw error codes, debug output, code snippets)\n\n"
+        "Return ONLY a JSON object mapping string numbers (as strings) to a short issue description. "
+        "Include only strings with issues. Return {} if all strings are fine. No explanation outside the JSON.\n\n"
+        f"{numbered}"
+    )
+
+
+def parse_review_response(response: str) -> dict:
+    try:
+        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', response.strip(), flags=re.DOTALL).strip()
+        data = json.loads(text)
+        return {k: str(v).strip() for k, v in data.items() if v}
+    except (json.JSONDecodeError, AttributeError):
+        return {}
+
+
 def parse_batch_response(response: str, count: int) -> list:
     # Try JSON first (strip optional markdown code fences)
     try:
@@ -380,6 +404,122 @@ def cmd_translate(args):
     if capped:
         remaining = len(missing) - limit
         print(f"\nNote: {remaining} string(s) remain. Run again to continue.")
+
+
+def _output_review_report(report: list, total: int, fmt: str) -> None:
+    if fmt == "json":
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return
+
+    if fmt == "markdown":
+        print("| # | String | Location | Issue |")
+        print("|---|--------|----------|-------|")
+        for item in report:
+            preview = item["msgid"][:60] + ("..." if len(item["msgid"]) > 60 else "")
+            locations = ", ".join(item["occurrences"]) if item["occurrences"] else "—"
+            print(f"| {item['num']} | {preview} | {locations} | {item['issue']} |")
+        return
+
+    if fmt == "csv":
+        writer = csv.DictWriter(sys.stdout, fieldnames=["num", "msgid", "occurrences", "issue"])
+        writer.writeheader()
+        for item in report:
+            writer.writerow({**item, "occurrences": "; ".join(item["occurrences"])})
+        return
+
+    # text (default)
+    if not report:
+        print("\nNo issues found.")
+        return
+    print(f"\nFound {len(report)} issue(s):\n")
+    for item in report:
+        preview = item["msgid"][:80] + ("..." if len(item["msgid"]) > 80 else "")
+        print(f"  String: \"{preview}\"")
+        for occ in item["occurrences"]:
+            print(f"  {occ}")
+        print(f"  Issue: {item['issue']}\n")
+    print(f"Total: {len(report)} issue(s) in {total} string(s)")
+
+
+def cmd_review(args):
+    missing_env = [n for n, v in [("GLOT_ENDPOINT_URL", GLOT_ENDPOINT_URL), ("GLOT_MODEL_ID", GLOT_MODEL_ID)] if not v]
+    if missing_env:
+        print(f"Error: required environment variable(s) not set: {', '.join(missing_env)}", file=sys.stderr)
+        sys.exit(1)
+
+    if not os.path.exists(args.input):
+        print(f"Error: file not found: {args.input}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        po = polib.pofile(args.input)
+    except OSError as e:
+        print(f"Error: cannot read file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    entries = list(po)
+
+    if not entries:
+        print("No strings found.", file=sys.stderr)
+        return
+
+    print(f"Reviewing {len(entries)} string(s) in {args.input} ...\n", file=sys.stderr)
+
+    # Static check: placeholder without translator comment
+    placeholder_re = re.compile(r'%(\d+\$)?[sd]')
+    static_issues = {
+        i: "Has %s/%d placeholder but no /* translators: */ comment"
+        for i, entry in enumerate(entries)
+        if placeholder_re.search(entry.msgid) and not entry.comment
+    }
+
+    chunks = [entries[i:i + GLOT_BATCH_SIZE] for i in range(0, len(entries), GLOT_BATCH_SIZE)]
+    ai_issues = {}
+
+    def review_chunk(idx_chunk):
+        idx, chunk = idx_chunk
+        prompt = build_review_prompt([e.msgid for e in chunk])
+        response = call_ai_translate(prompt)
+        return idx, chunk, parse_review_response(response)
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=GLOT_CONCURRENCY) as executor:
+        future_map = {executor.submit(review_chunk, (i, chunk)): i for i, chunk in enumerate(chunks)}
+        for future in as_completed(future_map):
+            completed += 1
+            batch_idx = future_map[future]
+            try:
+                idx, chunk, issues = future.result()
+                offset = idx * GLOT_BATCH_SIZE
+                for k, v in issues.items():
+                    try:
+                        local_idx = int(k) - 1
+                        if 0 <= local_idx < len(chunk):
+                            ai_issues[offset + local_idx] = v
+                    except (ValueError, TypeError):
+                        pass
+                print(f"  Batch {batch_idx + 1}/{len(chunks)}: done  [{completed}/{len(chunks)}]", file=sys.stderr)
+            except Exception as e:
+                print(f"  Batch {batch_idx + 1}/{len(chunks)}: FAILED — {e}  [{completed}/{len(chunks)}]", file=sys.stderr)
+
+    all_issues = {**static_issues}
+    for idx, issue in ai_issues.items():
+        if idx in all_issues:
+            all_issues[idx] += f"; {issue}"
+        else:
+            all_issues[idx] = issue
+
+    report = [
+        {
+            "num": idx + 1,
+            "msgid": entries[idx].msgid,
+            "occurrences": [f"{f}:{l}" for f, l in entries[idx].occurrences],
+            "issue": issue,
+        }
+        for idx, issue in sorted(all_issues.items())
+    ]
+
+    _output_review_report(report, len(entries), args.format)
 
 
 def cmd_status(args):
@@ -623,6 +763,11 @@ def main():
     p_tr.add_argument("--lang", default=os.environ.get("GLOT_LANG"), help="Target language code, e.g. ne_NP. Overrides GLOT_LANG.")
     p_tr.add_argument("--limit", type=int, default=0, help="Max strings to translate this run (0 = use GLOT_MAX_STRINGS).")
 
+    # review
+    p_rv = sub.add_parser("review", help="Review strings in a .po/.pot file for i18n issues.")
+    p_rv.add_argument("input", help="Path to the .po or .pot file.")
+    p_rv.add_argument("--format", choices=["text", "json", "csv", "markdown"], default="text", help="Output format (default: text).")
+
     # status
     p_st = sub.add_parser("status", help="Show translation progress for a .po file.")
     p_st.add_argument("input", help="Path to the .po file.")
@@ -651,7 +796,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "translate":
+    if args.command == "review":
+        cmd_review(args)
+    elif args.command == "translate":
         if not args.lang:
             parser.error("--lang is required (or set GLOT_LANG env variable)")
         cmd_translate(args)

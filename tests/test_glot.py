@@ -1,3 +1,4 @@
+import json
 import pytest
 import polib
 import requests
@@ -422,3 +423,248 @@ class TestValidateLang:
         args = type("Args", (), {"input": str(f), "lang": None})()
         with patch("glot.load_valid_languages", return_value=_FAKE_LANGUAGES):
             glot.cmd_status(args)  # no --lang → no validation → no exit
+
+
+# ---------------------------------------------------------------------------
+# build_review_prompt
+# ---------------------------------------------------------------------------
+
+class TestBuildReviewPrompt:
+    def test_numbered_strings_present(self):
+        prompt = glot.build_review_prompt(["Showing 5 results", "Hello World"])
+        assert "1. Showing 5 results" in prompt
+        assert "2. Hello World" in prompt
+
+    def test_rules_mentioned(self):
+        prompt = glot.build_review_prompt(["Test"])
+        assert "%d" in prompt
+        assert "%s" in prompt
+
+
+# ---------------------------------------------------------------------------
+# parse_review_response
+# ---------------------------------------------------------------------------
+
+class TestParseReviewResponse:
+    def test_valid_json_returns_issues(self):
+        r = '{"1": "Hardcoded number", "3": "Hardcoded URL"}'
+        assert glot.parse_review_response(r) == {"1": "Hardcoded number", "3": "Hardcoded URL"}
+
+    def test_empty_json_returns_empty_dict(self):
+        assert glot.parse_review_response("{}") == {}
+
+    def test_strips_code_fences(self):
+        r = '```json\n{"2": "Hardcoded file name"}\n```'
+        assert glot.parse_review_response(r) == {"2": "Hardcoded file name"}
+
+    def test_malformed_json_returns_empty_dict(self):
+        assert glot.parse_review_response("{bad json}") == {}
+
+    def test_empty_string_returns_empty_dict(self):
+        assert glot.parse_review_response("") == {}
+
+    def test_null_values_excluded(self):
+        r = '{"1": "Issue here", "2": null}'
+        assert glot.parse_review_response(r) == {"1": "Issue here"}
+
+
+# ---------------------------------------------------------------------------
+# _output_review_report
+# ---------------------------------------------------------------------------
+
+class TestOutputReviewReport:
+    def _make_report(self):
+        return [
+            {
+                "num": 3,
+                "msgid": "Showing 5 results",
+                "occurrences": ["src/admin.php:42"],
+                "issue": "Hardcoded number '5' — use %d",
+            }
+        ]
+
+    def test_text_shows_string_label(self, capsys):
+        glot._output_review_report(self._make_report(), 10, "text")
+        out = capsys.readouterr().out
+        assert 'String: "Showing 5 results"' in out
+
+    def test_text_shows_occurrence(self, capsys):
+        glot._output_review_report(self._make_report(), 10, "text")
+        out = capsys.readouterr().out
+        assert "src/admin.php:42" in out
+
+    def test_text_shows_issue(self, capsys):
+        glot._output_review_report(self._make_report(), 10, "text")
+        out = capsys.readouterr().out
+        assert "Issue:" in out
+        assert "Hardcoded number" in out
+
+    def test_text_no_issues(self, capsys):
+        glot._output_review_report([], 10, "text")
+        out = capsys.readouterr().out
+        assert "No issues found" in out
+
+    def test_text_truncates_long_msgid(self, capsys):
+        report = [{"num": 1, "msgid": "A" * 100, "occurrences": [], "issue": "Too long"}]
+        glot._output_review_report(report, 1, "text")
+        out = capsys.readouterr().out
+        assert "..." in out
+
+    def test_json_output_is_valid(self, capsys):
+        glot._output_review_report(self._make_report(), 10, "json")
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert isinstance(data, list)
+        assert data[0]["msgid"] == "Showing 5 results"
+        assert data[0]["occurrences"] == ["src/admin.php:42"]
+
+    def test_csv_output_has_header_and_row(self, capsys):
+        glot._output_review_report(self._make_report(), 10, "csv")
+        out = capsys.readouterr().out
+        lines = out.strip().splitlines()
+        assert lines[0] == "num,msgid,occurrences,issue"
+        assert "Showing 5 results" in lines[1]
+
+    def test_markdown_output_has_table(self, capsys):
+        glot._output_review_report(self._make_report(), 10, "markdown")
+        out = capsys.readouterr().out
+        lines = out.strip().splitlines()
+        assert lines[0] == "| # | String | Location | Issue |"
+        assert lines[1] == "|---|--------|----------|-------|"
+        assert "Showing 5 results" in lines[2]
+        assert "src/admin.php:42" in lines[2]
+        assert "Hardcoded number" in lines[2]
+
+    def test_csv_flattens_occurrences(self, capsys):
+        report = [
+            {
+                "num": 1,
+                "msgid": "Test",
+                "occurrences": ["src/a.php:1", "src/b.php:2"],
+                "issue": "Some issue",
+            }
+        ]
+        glot._output_review_report(report, 1, "csv")
+        out = capsys.readouterr().out
+        assert "src/a.php:1; src/b.php:2" in out
+
+
+# ---------------------------------------------------------------------------
+# cmd_review
+# ---------------------------------------------------------------------------
+
+_POT_CONTENT = """\
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\\n"
+
+#: src/admin.php:42
+msgid "Showing 5 results"
+msgstr ""
+
+#: src/core.php:10
+#. translators: %s is a file name
+msgid "Error in %s detected"
+msgstr ""
+
+#: src/settings.php:99
+msgid "Save settings %s"
+msgstr ""
+
+#: src/misc.php:5
+msgid "Hello World"
+msgstr ""
+"""
+
+
+class TestCmdReview:
+    @pytest.fixture
+    def pot_file(self, tmp_path):
+        f = tmp_path / "test.pot"
+        f.write_text(_POT_CONTENT, encoding="utf-8")
+        return str(f)
+
+    def _args(self, path, fmt="text"):
+        return type("Args", (), {"input": path, "format": fmt})()
+
+    def test_missing_env_vars_exits(self, pot_file):
+        with patch("glot.GLOT_ENDPOINT_URL", None), patch("glot.GLOT_MODEL_ID", None):
+            with pytest.raises(SystemExit):
+                glot.cmd_review(self._args(pot_file))
+
+    def test_missing_file_exits(self):
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), patch("glot.GLOT_MODEL_ID", "m"):
+            with pytest.raises(SystemExit):
+                glot.cmd_review(self._args("/no/such/file.pot"))
+
+    def test_unreadable_file_exits(self, pot_file):
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.polib.pofile", side_effect=OSError("Permission denied")):
+            with pytest.raises(SystemExit):
+                glot.cmd_review(self._args(pot_file))
+
+    def test_static_check_flags_placeholder_without_comment(self, pot_file, capsys):
+        # "Save settings %s" has %s but no translator comment
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.call_ai_translate", return_value="{}"):
+            glot.cmd_review(self._args(pot_file))
+        out = capsys.readouterr().out
+        assert "Save settings %s" in out
+        assert "translators" in out
+
+    def test_static_check_ignores_placeholder_with_comment(self, pot_file, capsys):
+        # "Error in %s detected" has both %s and a translator comment — must NOT be flagged
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.call_ai_translate", return_value="{}"):
+            glot.cmd_review(self._args(pot_file))
+        out = capsys.readouterr().out
+        assert "Error in %s detected" not in out
+
+    def test_ai_issues_appear_in_output(self, pot_file, capsys):
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.call_ai_translate", return_value='{"1": "Hardcoded number — use %d"}'):
+            glot.cmd_review(self._args(pot_file))
+        out = capsys.readouterr().out
+        assert "Hardcoded number" in out
+
+    def test_occurrence_shown_in_output(self, pot_file, capsys):
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.call_ai_translate", return_value='{"1": "Hardcoded number — use %d"}'):
+            glot.cmd_review(self._args(pot_file))
+        out = capsys.readouterr().out
+        assert "src/admin.php:42" in out
+
+    def test_no_issues_message_when_all_clean(self, tmp_path, capsys):
+        content = (
+            'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\n'
+            '#: src/misc.php:5\nmsgid "Hello World"\nmsgstr ""\n'
+        )
+        f = tmp_path / "clean.pot"
+        f.write_text(content, encoding="utf-8")
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.call_ai_translate", return_value="{}"):
+            glot.cmd_review(self._args(str(f)))
+        assert "No issues found" in capsys.readouterr().out
+
+    def test_failed_batch_does_not_crash(self, pot_file, capsys):
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.call_ai_translate", side_effect=Exception("API down")):
+            glot.cmd_review(self._args(pot_file))  # must not raise
+        assert "FAILED" in capsys.readouterr().err
+
+    def test_json_format_output(self, pot_file, capsys):
+        with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
+             patch("glot.GLOT_MODEL_ID", "m"), \
+             patch("glot.call_ai_translate", return_value='{"1": "Hardcoded number"}'):
+            glot.cmd_review(self._args(pot_file, fmt="json"))
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert isinstance(data, list)
+        assert any(item["issue"] == "Hardcoded number" for item in data)
