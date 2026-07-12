@@ -8,6 +8,7 @@ Repo:   https://github.com/ernilambar/glot-cli
 
 import argparse
 import csv
+from importlib.metadata import version, PackageNotFoundError
 import os
 import re
 import shutil
@@ -366,6 +367,11 @@ def main():
         prog="glot",
         description="Translate .po files using any OpenAI-compatible backend.",
     )
+    try:
+        _version = version("glot-cli")
+    except PackageNotFoundError:
+        _version = "unknown"
+    parser.add_argument("--version", action="version", version=f"%(prog)s {_version}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # translate
