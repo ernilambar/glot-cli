@@ -377,7 +377,7 @@ def main():
     # translate
     p_tr = sub.add_parser("translate", help="Translate missing entries in a .po file.")
     p_tr.add_argument("input", help="Path to the .po file.")
-    p_tr.add_argument("--lang",  default="ne_NP", help="Target language code (default: ne_NP).")
+    p_tr.add_argument("--lang", default=os.environ.get("GLOT_LANG"), help="Target language code, e.g. ne_NP. Overrides GLOT_LANG.")
     p_tr.add_argument("--limit", type=int, default=0, help="Max strings to translate this run (0 = use GLOT_MAX_STRINGS).")
 
     # glossary
@@ -392,6 +392,8 @@ def main():
     args = parser.parse_args()
 
     if args.command == "translate":
+        if not args.lang:
+            parser.error("--lang is required (or set GLOT_LANG env variable)")
         cmd_translate(args)
     elif args.command == "glossary":
         if args.glossary_command == "list":

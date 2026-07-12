@@ -24,6 +24,7 @@ pipx install -e /path/to/glot-cli
 | `GLOT_ENDPOINT_URL` | Yes | Chat completions URL, e.g. `http://127.0.0.1:1234/v1/chat/completions` |
 | `GLOT_MODEL_ID` | Yes | Model ID to use |
 | `GLOT_API_KEY` | No | API key (omit for local models) |
+| `GLOT_LANG` | No | Default target language code, e.g. `ne_NP` |
 | `GLOT_DATA_DIR` | No | Data directory (default: `~/.config/glot-cli`) |
 | `GLOT_MAX_STRINGS` | No | Max strings per run (default: `200`) |
 | `GLOT_BATCH_SIZE` | No | Strings per API call (default: `10`) |
@@ -45,7 +46,7 @@ glot translate path/to/file.po --lang ne_NP
 Options:
 
 ```
---lang   Target language code (default: ne_NP)
+--lang   Target language code, e.g. ne_NP. Overrides GLOT_LANG. Required if GLOT_LANG is not set.
 --limit  Max strings this run, overrides GLOT_MAX_STRINGS
 ```
 
