@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
 """
 glot - CLI tool for translating WordPress .po files using any OpenAI-compatible backend.
 
@@ -20,6 +21,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 import polib
+
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
 
 # ---------------------------------------------------------------------------
 # Configuration (override via environment variables)
@@ -160,12 +166,29 @@ def build_batch_prompt(items: list, target_lang: str, system_prompt: str | None)
             f"2. String type: commands/buttons → imperative verb form; labels/statuses/nouns → concise word or phrase, no added verb; sentences → natural sentence.\n"
             f"3. Placeholders: keep exactly as-is — printf variables (%s, %d, %1$s), template variables ({{name}}, {{{{email}}}}), HTML tags, HTML entities (&amp;, &lt;, &gt;, &quot;), WordPress shortcodes, plugin/theme names, URLs.\n"
             f"4. Glossary: if approved terms are listed, copy them exactly — no synonyms, no alternatives.\n"
-            f"Return ONLY a numbered list with translations, one per line, "
-            f"with no explanation or extra text.{glossary_block}\n\n{numbered}"
+            f"Return ONLY a JSON object mapping number strings to translations: {{\"1\": \"...\", \"2\": \"...\"}}. "
+            f"No explanation, no extra text.{glossary_block}\n\n{numbered}"
         )
 
 
 def parse_batch_response(response: str, count: int) -> list:
+    # Try JSON first (strip optional markdown code fences)
+    try:
+        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', response.strip(), flags=re.DOTALL).strip()
+        data = json.loads(text)
+        results = {}
+        for k, v in data.items():
+            try:
+                idx = int(k) - 1
+                if 0 <= idx < count:
+                    results[idx] = str(v).strip()
+            except (ValueError, TypeError):
+                pass
+        return [results.get(i, "") for i in range(count)]
+    except (json.JSONDecodeError, AttributeError):
+        pass
+
+    # Fall back to numbered list (e.g. custom system prompt output)
     results = {}
     for line in response.splitlines():
         m = re.match(r'^(\d+)\.\s*(.+)$', line.strip())
@@ -279,8 +302,9 @@ def cmd_translate(args):
         response = call_ai_translate(prompt, system_prompt)
         return idx, chunk, parse_batch_response(response, len(chunk))
 
-    failed  = []
-    results = {}
+    failed       = []
+    results      = {}
+    done_strings = 0
 
     with ThreadPoolExecutor(max_workers=GLOT_CONCURRENCY) as executor:
         future_map = {executor.submit(translate_chunk, (i, chunk)): i for i, chunk in enumerate(chunks)}
@@ -295,14 +319,16 @@ def cmd_translate(args):
                         ok += 1
                     else:
                         failed.append({"msgid": entry.msgid, "error": "missing from response"})
+                done_strings += len(chunk)
                 completed += 1
-                print(f"  Batch {idx + 1}/{len(chunks)}: {ok}/{len(chunk)} translated")
+                print(f"  Batch {idx + 1}/{len(chunks)}: {ok}/{len(chunk)} ok  [{done_strings}/{len(batch)}]")
             except Exception as e:
                 chunk = chunks[future_map[future]]
+                done_strings += len(chunk)
                 for entry in chunk:
                     failed.append({"msgid": entry.msgid, "error": str(e)})
                 completed += 1
-                print(f"  Batch {future_map[future] + 1}/{len(chunks)}: FAILED — {e}")
+                print(f"  Batch {future_map[future] + 1}/{len(chunks)}: FAILED — {e}  [{done_strings}/{len(batch)}]")
 
     for entry, translation in results.values():
         entry.msgstr = translation
@@ -321,6 +347,34 @@ def cmd_translate(args):
     if capped:
         remaining = len(missing) - limit
         print(f"\nNote: {remaining} string(s) remain. Run again to continue.")
+
+
+def cmd_status(args):
+    if not os.path.exists(args.input):
+        print(f"Error: file not found: {args.input}", file=sys.stderr)
+        sys.exit(1)
+
+    po           = polib.pofile(args.input)
+    total        = len(po)
+    translated   = len(po.translated_entries())
+    untranslated = len(po.untranslated_entries())
+    fuzzy        = len(po.fuzzy_entries())
+    pct          = (translated / total * 100) if total else 0.0
+
+    print(f"File: {args.input}\n")
+    print(f"  {'Total':<14} {total}")
+    print(f"  {'Translated':<14} {translated}  ({pct:.1f}%)")
+    print(f"  {'Untranslated':<14} {untranslated}")
+    print(f"  {'Fuzzy':<14} {fuzzy}")
+
+    if args.lang:
+        core = load_core_translations(args.lang)
+        if core:
+            cache_hits = sum(
+                1 for e in po.untranslated_entries()
+                if (f"{e.msgctxt}\x04{e.msgid}" if e.msgctxt else e.msgid) in core
+            )
+            print(f"\n  Core cache ({args.lang}): {cache_hits} of {untranslated} untranslated string(s) have cached translations")
 
 
 def cmd_glossary_list(args):
@@ -527,6 +581,11 @@ def main():
     p_tr.add_argument("--lang", default=os.environ.get("GLOT_LANG"), help="Target language code, e.g. ne_NP. Overrides GLOT_LANG.")
     p_tr.add_argument("--limit", type=int, default=0, help="Max strings to translate this run (0 = use GLOT_MAX_STRINGS).")
 
+    # status
+    p_st = sub.add_parser("status", help="Show translation progress for a .po file.")
+    p_st.add_argument("input", help="Path to the .po file.")
+    p_st.add_argument("--lang", default=os.environ.get("GLOT_LANG"), help="Locale code for core cache check, e.g. ne_NP.")
+
     # glossary
     p_gl = sub.add_parser("glossary", help="Manage glossary files.")
     gl_sub = p_gl.add_subparsers(dest="glossary_command", required=True)
@@ -545,12 +604,17 @@ def main():
     p_core_pull = core_sub.add_parser("pull", help="Download core translations from translate.wordpress.org.")
     p_core_pull.add_argument("locale", nargs="?", default=os.environ.get("GLOT_LANG"), help="Locale code, e.g. ne_NP. Defaults to GLOT_LANG.")
 
+    if argcomplete:
+        argcomplete.autocomplete(parser)
+
     args = parser.parse_args()
 
     if args.command == "translate":
         if not args.lang:
             parser.error("--lang is required (or set GLOT_LANG env variable)")
         cmd_translate(args)
+    elif args.command == "status":
+        cmd_status(args)
     elif args.command == "glossary":
         if args.glossary_command == "list":
             cmd_glossary_list(args)

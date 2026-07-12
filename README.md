@@ -19,6 +19,14 @@ pipx ensurepath
 pipx install -e /path/to/glot-cli
 ```
 
+### Shell completions (optional)
+
+Add to your `.zshrc` or `.bashrc`:
+
+```bash
+eval "$(register-python-argcomplete glot)"
+```
+
 ## Environment variables
 
 | Variable | Required | Description |
@@ -52,6 +60,14 @@ Options:
 --lang   Target language code, e.g. ne_NP. Overrides GLOT_LANG. Required if GLOT_LANG is not set.
 --limit  Max strings this run, overrides GLOT_MAX_STRINGS
 ```
+
+### Check translation status
+
+```bash
+glot status path/to/file.po
+```
+
+Shows total, translated, untranslated, and fuzzy counts for a `.po` file. If `GLOT_LANG` is set, also shows how many untranslated strings have cached translations in the core cache.
 
 ### Manage core translation cache
 

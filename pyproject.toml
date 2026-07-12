@@ -12,7 +12,7 @@ description = "CLI tool for translating WordPress .po files using any OpenAI-com
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-dependencies = ["polib", "requests"]
+dependencies = ["polib", "requests", "argcomplete"]
 
 [[project.authors]]
 name = "Nilambar Sharma"

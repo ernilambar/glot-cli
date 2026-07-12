@@ -1,2 +1,3 @@
-polib      # PO file parsing
-requests   # HTTP client
+polib        # PO file parsing
+requests     # HTTP client
+argcomplete  # Shell tab completion
