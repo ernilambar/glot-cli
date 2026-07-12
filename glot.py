@@ -132,9 +132,12 @@ def build_batch_prompt(items: list, target_lang: str, system_prompt: str | None)
             glossary_block = "\n\nUse these exact terms where they apply:\n" + "\n".join(lines)
 
         return (
-            f"Translate each numbered English UI string into {target_lang}. "
-            f"Preserve any placeholders "
-            f"(such as %s, %(name)s, {{variable}}, <b>, etc.) exactly as-is. "
+            f"Translate each numbered English WordPress UI string into {target_lang}. "
+            f"Follow these rules strictly:\n"
+            f"1. Passthrough: if the entire string is a URL, email, file path, or version number, return it unchanged.\n"
+            f"2. String type: commands/buttons → imperative verb form; labels/statuses/nouns → concise word or phrase, no added verb; sentences → natural sentence.\n"
+            f"3. Placeholders: keep exactly as-is — printf variables (%s, %d, %1$s), template variables ({{name}}, {{{{email}}}}), HTML tags, WordPress shortcodes, plugin/theme names, URLs.\n"
+            f"4. Glossary: if approved terms are listed, copy them exactly — no synonyms, no alternatives.\n"
             f"Return ONLY a numbered list with translations, one per line, "
             f"with no explanation or extra text.{glossary_block}\n\n{numbered}"
         )
