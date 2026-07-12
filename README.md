@@ -61,6 +61,28 @@ Options:
 --limit  Max strings this run, overrides GLOT_MAX_STRINGS
 ```
 
+### Review strings for i18n issues
+
+```bash
+glot review path/to/file.pot
+```
+
+Analyzes all strings in a `.po` or `.pot` file using AI and flags i18n violations — hardcoded numbers, dates, file names, URLs, and missing `/* translators: */` comments. Each issue shows the source string, file location, and what to fix.
+
+```
+Found 1 issue(s):
+
+  String: "Showing 5 results"
+  src/admin/class-admin.php:42
+  Issue: Hardcoded number '5' — use %d via sprintf
+
+Total: 1 issue(s) in 45 string(s)
+```
+
+```
+--format   Output format: text (default), json, csv, markdown
+```
+
 ### Check translation status
 
 ```bash
