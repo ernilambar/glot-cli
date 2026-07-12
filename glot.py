@@ -374,7 +374,7 @@ def main():
         _version = version("glot-cli")
     except PackageNotFoundError:
         _version = "unknown"
-    parser.add_argument("--version", action="version", version=f"%(prog)s {_version}")
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {_version}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # translate
