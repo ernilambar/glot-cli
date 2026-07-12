@@ -14,9 +14,15 @@ license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = ["polib", "requests", "argcomplete"]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [[project.authors]]
 name = "Nilambar Sharma"
 email = "nilambar@outlook.com"
 
 [project.scripts]
 glot = "glot:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
