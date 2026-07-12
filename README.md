@@ -56,6 +56,9 @@ Options:
 # Download glossary from translate.wordpress.org
 glot glossary pull ne_NP
 
+# Omit locale if GLOT_LANG is set
+glot glossary pull
+
 # List downloaded glossaries
 glot glossary list
 ```

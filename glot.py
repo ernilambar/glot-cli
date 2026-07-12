@@ -308,6 +308,9 @@ def cmd_glossary_list(args):
 
 
 def cmd_glossary_pull(args):
+    if not args.locale:
+        print("Error: locale is required (or set GLOT_LANG env variable)")
+        return
     locale = args.locale
     parts  = locale.split("_")
 
@@ -387,7 +390,7 @@ def main():
     gl_sub.add_parser("list", help="List available glossary files.")
 
     p_pull = gl_sub.add_parser("pull", help="Download a glossary from translate.wordpress.org.")
-    p_pull.add_argument("locale", help="Locale code, e.g. ne_NP.")
+    p_pull.add_argument("locale", nargs="?", default=os.environ.get("GLOT_LANG"), help="Locale code, e.g. ne_NP. Defaults to GLOT_LANG.")
 
     args = parser.parse_args()
 
