@@ -197,7 +197,7 @@ def build_review_prompt(msgids: list) -> str:
     return (
         "You are a WordPress i18n quality reviewer. Analyze each numbered English string for i18n violations.\n\n"
         "Flag only these issues:\n"
-        "1. Hardcoded number/count that should use %d, or implicit singular/plural without _n() — e.g., \"Showing 5 results\", \"1 item found\", \"Delete items\" (when a count is implied)\n"
+        "1. Hardcoded numeric literal that should use %d — e.g., \"Showing 5 results\", \"1 item found\", \"3 comments\". Do NOT flag strings without a digit or without a runtime-variable count (e.g., \"No results found\", \"Delete items\", \"Add new\", \"Recent posts\" are fine).\n"
         "2. Hardcoded version number, date, or date format that should use %s\n"
         "3. Hardcoded file name or file path that should use %s; or a URL/email embedded within other text — do NOT flag a string whose entire content is a URL or email\n"
         "4. String that is clearly not user-facing (raw error codes, debug output, code snippets)\n"
@@ -249,7 +249,7 @@ def parse_batch_response(response: str, count: int) -> list:
     return [results.get(i, "") for i in range(count)]
 
 
-def call_ai_translate(prompt: str, system_prompt: str | None = None) -> str:
+def call_ai(prompt: str, system_prompt: str | None = None, temperature: float = 0.2) -> tuple[str, dict | None]:
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -266,7 +266,7 @@ def call_ai_translate(prompt: str, system_prompt: str | None = None) -> str:
             json={
                 "model": GLOT_MODEL_ID,
                 "messages": messages,
-                "temperature": 0.2,
+                "temperature": temperature,
             },
             timeout=GLOT_REQUEST_TIMEOUT,
         )
@@ -277,7 +277,19 @@ def call_ai_translate(prompt: str, system_prompt: str | None = None) -> str:
         response.raise_for_status()
         break
 
-    return response.json()["choices"][0]["message"]["content"].strip()
+    data = response.json()
+    content = data["choices"][0]["message"]["content"].strip()
+
+    usage_raw = data.get("usage") or {}
+    p = usage_raw.get("prompt_tokens")
+    c = usage_raw.get("completion_tokens")
+    t = usage_raw.get("total_tokens")
+    if p is not None and c is not None and t is not None:
+        usage = {"prompt_tokens": p, "completion_tokens": c, "total_tokens": t}
+    else:
+        usage = None
+
+    return content, usage
 
 
 # ---------------------------------------------------------------------------
@@ -358,19 +370,26 @@ def cmd_translate(args):
             for e in chunk
         ]
         prompt   = build_batch_prompt(items, args.lang, system_prompt)
-        response = call_ai_translate(prompt, system_prompt)
-        return idx, chunk, parse_batch_response(response, len(chunk))
+        response, usage = call_ai(prompt, system_prompt)
+        return idx, chunk, parse_batch_response(response, len(chunk)), usage
 
     failed       = []
     results      = {}
     done_strings = 0
+    total_usage    = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    usage_complete = True
 
     with ThreadPoolExecutor(max_workers=GLOT_CONCURRENCY) as executor:
         future_map = {executor.submit(translate_chunk, (i, chunk)): i for i, chunk in enumerate(chunks)}
         completed  = 0
         for future in as_completed(future_map):
             try:
-                idx, chunk, translations = future.result()
+                idx, chunk, translations, usage = future.result()
+                if usage is None:
+                    usage_complete = False
+                else:
+                    for k in total_usage:
+                        total_usage[k] += usage[k]
                 ok = 0
                 for entry, translation in zip(chunk, translations):
                     if translation:
@@ -382,6 +401,7 @@ def cmd_translate(args):
                 completed += 1
                 print(f"  Batch {idx + 1}/{len(chunks)}: {ok}/{len(chunk)} ok  [{done_strings}/{len(batch)}]")
             except Exception as e:
+                usage_complete = False
                 chunk = chunks[future_map[future]]
                 done_strings += len(chunk)
                 for entry in chunk:
@@ -401,6 +421,8 @@ def cmd_translate(args):
     translated = len(batch) - len(failed)
     print(f"\nSaved: {args.input}")
     print(f"Translated: {translated}  Failed: {len(failed)}")
+    if usage_complete and total_usage["total_tokens"] > 0:
+        print(f"Tokens: input={total_usage['prompt_tokens']}, output={total_usage['completion_tokens']}, total={total_usage['total_tokens']}")
 
     if failed:
         print("\nFailed entries:")
@@ -412,7 +434,16 @@ def cmd_translate(args):
         print(f"\nNote: {remaining} string(s) remain. Run again to continue.")
 
 
-def _output_review_report(report: list, total: int, fmt: str) -> None:
+def _format_issue_display(item: dict) -> str:
+    parts = []
+    if item.get("static_issue"):
+        parts.append(item["static_issue"])
+    if item.get("ai_issue"):
+        parts.append(f"✨ {item['ai_issue']}")
+    return "; ".join(parts)
+
+
+def _output_review_report(report: list, total: int, fmt: str, usage: dict | None = None) -> None:
     if fmt == "json":
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return
@@ -423,11 +454,13 @@ def _output_review_report(report: list, total: int, fmt: str) -> None:
         for item in report:
             preview = item["msgid"][:60] + ("..." if len(item["msgid"]) > 60 else "")
             locations = ", ".join(item["occurrences"]) if item["occurrences"] else "—"
-            print(f"| {item['num']} | {preview} | {locations} | {item['issue']} |")
+            print(f"| {item['num']} | {preview} | {locations} | {_format_issue_display(item)} |")
+        if usage:
+            print(f"\nTokens: input={usage['prompt_tokens']}, output={usage['completion_tokens']}, total={usage['total_tokens']}")
         return
 
     if fmt == "csv":
-        writer = csv.DictWriter(sys.stdout, fieldnames=["num", "msgid", "occurrences", "issue"])
+        writer = csv.DictWriter(sys.stdout, fieldnames=["num", "msgid", "occurrences", "static_issue", "ai_issue"])
         writer.writeheader()
         for item in report:
             writer.writerow({**item, "occurrences": "; ".join(item["occurrences"])})
@@ -436,23 +469,29 @@ def _output_review_report(report: list, total: int, fmt: str) -> None:
     if fmt == "table":
         if not report:
             print("\nNo issues found.")
+            if usage:
+                print(f"Tokens: input={usage['prompt_tokens']}, output={usage['completion_tokens']}, total={usage['total_tokens']}")
             return
         rows = [
             [
                 item["num"],
                 item["msgid"][:80] + ("..." if len(item["msgid"]) > 80 else ""),
                 "\n".join(item["occurrences"]) if item["occurrences"] else "—",
-                item["issue"],
+                _format_issue_display(item),
             ]
             for item in report
         ]
         print(tabulate(rows, headers=["#", "String", "Location", "Issue"], tablefmt="simple"))
         print(f"\nTotal: {len(report)} issue(s) in {total} string(s)")
+        if usage:
+            print(f"Tokens: input={usage['prompt_tokens']}, output={usage['completion_tokens']}, total={usage['total_tokens']}")
         return
 
     # text (default)
     if not report:
         print("\nNo issues found.")
+        if usage:
+            print(f"Tokens: input={usage['prompt_tokens']}, output={usage['completion_tokens']}, total={usage['total_tokens']}")
         return
     print(f"\nFound {len(report)} issue(s):\n")
     for item in report:
@@ -460,8 +499,10 @@ def _output_review_report(report: list, total: int, fmt: str) -> None:
         print(f"  String: \"{preview}\"")
         for occ in item["occurrences"]:
             print(f"  {occ}")
-        print(f"  Issue: {item['issue']}\n")
+        print(f"  Issue: {_format_issue_display(item)}\n")
     print(f"Total: {len(report)} issue(s) in {total} string(s)")
+    if usage:
+        print(f"Tokens: input={usage['prompt_tokens']}, output={usage['completion_tokens']}, total={usage['total_tokens']}")
 
 
 def cmd_review(args):
@@ -501,12 +542,14 @@ def cmd_review(args):
 
     chunks = [entries[i:i + GLOT_BATCH_SIZE] for i in range(0, len(entries), GLOT_BATCH_SIZE)]
     ai_issues = {}
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    usage_complete = True
 
     def review_chunk(idx_chunk):
         idx, chunk = idx_chunk
         prompt = build_review_prompt([e.msgid for e in chunk])
-        response = call_ai_translate(prompt)
-        return idx, chunk, parse_review_response(response)
+        content, usage = call_ai(prompt, temperature=0.0)
+        return idx, chunk, parse_review_response(content), usage
 
     completed = 0
     with ThreadPoolExecutor(max_workers=GLOT_CONCURRENCY) as executor:
@@ -515,7 +558,12 @@ def cmd_review(args):
             completed += 1
             batch_idx = future_map[future]
             try:
-                idx, chunk, issues = future.result()
+                idx, chunk, issues, usage = future.result()
+                if usage is None:
+                    usage_complete = False
+                else:
+                    for k in total_usage:
+                        total_usage[k] += usage[k]
                 offset = idx * GLOT_BATCH_SIZE
                 for k, v in issues.items():
                     try:
@@ -527,27 +575,24 @@ def cmd_review(args):
                 if not machine_fmt:
                     print(f"  Batch {batch_idx + 1}/{len(chunks)}: done  [{completed}/{len(chunks)}]", file=sys.stderr)
             except Exception as e:
+                usage_complete = False
                 if not machine_fmt:
                     print(f"  Batch {batch_idx + 1}/{len(chunks)}: FAILED — {e}  [{completed}/{len(chunks)}]", file=sys.stderr)
 
-    all_issues = {**static_issues}
-    for idx, issue in ai_issues.items():
-        if idx in all_issues:
-            all_issues[idx] += f"; {issue}"
-        else:
-            all_issues[idx] = issue
-
+    all_indices = sorted(set(static_issues) | set(ai_issues))
     report = [
         {
             "num": idx + 1,
             "msgid": entries[idx].msgid,
             "occurrences": [f"{f}:{l}" for f, l in entries[idx].occurrences],
-            "issue": issue,
+            "static_issue": static_issues.get(idx),
+            "ai_issue": ai_issues.get(idx),
         }
-        for idx, issue in sorted(all_issues.items())
+        for idx in all_indices
     ]
 
-    _output_review_report(report, len(entries), args.format)
+    usage_display = total_usage if usage_complete else None
+    _output_review_report(report, len(entries), args.format, usage_display)
 
 
 def cmd_status(args):

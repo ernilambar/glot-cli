@@ -198,7 +198,7 @@ msgstr "अस्पष्ट"
 
 
 # ---------------------------------------------------------------------------
-# call_ai_translate
+# call_ai
 # ---------------------------------------------------------------------------
 
 class TestCallAiTranslate:
@@ -213,13 +213,30 @@ class TestCallAiTranslate:
         with patch("glot.requests.post", return_value=self._make_response("नमस्ते")), \
              patch("glot.GLOT_ENDPOINT_URL", "http://fake/v1/chat"), \
              patch("glot.GLOT_MODEL_ID", "test-model"):
-            assert glot.call_ai_translate("Translate: Hello") == "नमस्ते"
+            content, usage = glot.call_ai("Translate: Hello")
+        assert content == "नमस्ते"
+        assert usage is None
+
+    def test_returns_usage_when_provided(self):
+        r = Mock()
+        r.status_code = 200
+        r.json.return_value = {
+            "choices": [{"message": {"content": "नमस्ते"}}],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15},
+        }
+        r.raise_for_status = Mock()
+        with patch("glot.requests.post", return_value=r), \
+             patch("glot.GLOT_ENDPOINT_URL", "http://fake/v1/chat"), \
+             patch("glot.GLOT_MODEL_ID", "test-model"):
+            content, usage = glot.call_ai("Translate: Hello")
+        assert content == "नमस्ते"
+        assert usage == {"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15}
 
     def test_sends_system_prompt_as_system_message(self):
         with patch("glot.requests.post", return_value=self._make_response("ok")) as mock_post, \
              patch("glot.GLOT_ENDPOINT_URL", "http://fake/v1/chat"), \
              patch("glot.GLOT_MODEL_ID", "test-model"):
-            glot.call_ai_translate("prompt", system_prompt="You are a translator.")
+            glot.call_ai("prompt", system_prompt="You are a translator.")
         messages = mock_post.call_args.kwargs["json"]["messages"]
         assert messages[0] == {"role": "system", "content": "You are a translator."}
 
@@ -232,7 +249,8 @@ class TestCallAiTranslate:
              patch("glot.GLOT_ENDPOINT_URL", "http://fake/v1/chat"), \
              patch("glot.GLOT_MODEL_ID", "test-model"), \
              patch("time.sleep"):
-            assert glot.call_ai_translate("Translate: World") == "संसार"
+            content, _ = glot.call_ai("Translate: World")
+        assert content == "संसार"
 
     def test_http_error_raises(self):
         r = Mock()
@@ -243,7 +261,7 @@ class TestCallAiTranslate:
              patch("glot.GLOT_ENDPOINT_URL", "http://fake/v1/chat"), \
              patch("glot.GLOT_MODEL_ID", "test-model"):
             with pytest.raises(requests.HTTPError):
-                glot.call_ai_translate("Translate: Error")
+                glot.call_ai("Translate: Error")
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +315,7 @@ msgstr ""
         args = type("Args", (), {"input": po_file, "lang": "ne_NP", "limit": 0})()
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
-             patch("glot.call_ai_translate", return_value='{"1": "नमस्ते", "2": "संसार"}'):
+             patch("glot.call_ai", return_value=('{"1": "नमस्ते", "2": "संसार"}', None)):
             glot.cmd_translate(args)
         po = polib.pofile(po_file)
         strings = {e.msgid: e.msgstr for e in po}
@@ -320,7 +338,7 @@ msgstr ""
         args = type("Args", (), {"input": po_file, "lang": "ne_NP", "limit": 0})()
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
-             patch("glot.call_ai_translate", return_value='{"1": "नमस्ते", "2": "संसार"}'):
+             patch("glot.call_ai", return_value=('{"1": "नमस्ते", "2": "संसार"}', None)):
             with pytest.raises(SystemExit):
                 glot.cmd_translate(args)
 
@@ -330,7 +348,7 @@ msgstr ""
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
              patch("glot.load_core_translations", return_value=core), \
-             patch("glot.call_ai_translate") as mock_ai:
+             patch("glot.call_ai") as mock_ai:
             glot.cmd_translate(args)
         mock_ai.assert_not_called()
         assert "Core matches: 2" in capsys.readouterr().out
@@ -479,7 +497,8 @@ class TestOutputReviewReport:
                 "num": 3,
                 "msgid": "Showing 5 results",
                 "occurrences": ["src/admin.php:42"],
-                "issue": "Hardcoded number '5' — use %d",
+                "static_issue": None,
+                "ai_issue": "Hardcoded number '5' — use %d",
             }
         ]
 
@@ -505,7 +524,7 @@ class TestOutputReviewReport:
         assert "No issues found" in out
 
     def test_text_truncates_long_msgid(self, capsys):
-        report = [{"num": 1, "msgid": "A" * 100, "occurrences": [], "issue": "Too long"}]
+        report = [{"num": 1, "msgid": "A" * 100, "occurrences": [], "static_issue": "Too long", "ai_issue": None}]
         glot._output_review_report(report, 1, "text")
         out = capsys.readouterr().out
         assert "..." in out
@@ -522,7 +541,7 @@ class TestOutputReviewReport:
         glot._output_review_report(self._make_report(), 10, "csv")
         out = capsys.readouterr().out
         lines = out.strip().splitlines()
-        assert lines[0] == "num,msgid,occurrences,issue"
+        assert lines[0] == "num,msgid,occurrences,static_issue,ai_issue"
         assert "Showing 5 results" in lines[1]
 
     def test_markdown_output_has_table(self, capsys):
@@ -541,7 +560,8 @@ class TestOutputReviewReport:
                 "num": 1,
                 "msgid": "Test",
                 "occurrences": ["src/a.php:1", "src/b.php:2"],
-                "issue": "Some issue",
+                "static_issue": "Some issue",
+                "ai_issue": None,
             }
         ]
         glot._output_review_report(report, 1, "csv")
@@ -608,7 +628,7 @@ class TestCmdReview:
         # "Save settings %s" has %s but no translator comment
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
-             patch("glot.call_ai_translate", return_value="{}"):
+             patch("glot.call_ai", return_value=("{}", None)):
             glot.cmd_review(self._args(pot_file))
         out = capsys.readouterr().out
         assert "Save settings %s" in out
@@ -618,7 +638,7 @@ class TestCmdReview:
         # "Error in %s detected" has both %s and a translator comment — must NOT be flagged
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
-             patch("glot.call_ai_translate", return_value="{}"):
+             patch("glot.call_ai", return_value=("{}", None)):
             glot.cmd_review(self._args(pot_file))
         out = capsys.readouterr().out
         assert "Error in %s detected" not in out
@@ -626,7 +646,7 @@ class TestCmdReview:
     def test_ai_issues_appear_in_output(self, pot_file, capsys):
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
-             patch("glot.call_ai_translate", return_value='{"1": "Hardcoded number — use %d"}'):
+             patch("glot.call_ai", return_value=('{"1": "Hardcoded number — use %d"}', None)):
             glot.cmd_review(self._args(pot_file))
         out = capsys.readouterr().out
         assert "Hardcoded number" in out
@@ -634,7 +654,7 @@ class TestCmdReview:
     def test_occurrence_shown_in_output(self, pot_file, capsys):
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
-             patch("glot.call_ai_translate", return_value='{"1": "Hardcoded number — use %d"}'):
+             patch("glot.call_ai", return_value=('{"1": "Hardcoded number — use %d"}', None)):
             glot.cmd_review(self._args(pot_file))
         out = capsys.readouterr().out
         assert "src/admin.php:42" in out
@@ -648,23 +668,23 @@ class TestCmdReview:
         f.write_text(content, encoding="utf-8")
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
-             patch("glot.call_ai_translate", return_value="{}"):
+             patch("glot.call_ai", return_value=("{}", None)):
             glot.cmd_review(self._args(str(f)))
         assert "No issues found" in capsys.readouterr().out
 
     def test_failed_batch_does_not_crash(self, pot_file, capsys):
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
-             patch("glot.call_ai_translate", side_effect=Exception("API down")):
+             patch("glot.call_ai", side_effect=Exception("API down")):
             glot.cmd_review(self._args(pot_file))  # must not raise
         assert "FAILED" in capsys.readouterr().err
 
     def test_json_format_output(self, pot_file, capsys):
         with patch("glot.GLOT_ENDPOINT_URL", "http://fake"), \
              patch("glot.GLOT_MODEL_ID", "m"), \
-             patch("glot.call_ai_translate", return_value='{"1": "Hardcoded number"}'):
+             patch("glot.call_ai", return_value=('{"1": "Hardcoded number"}', None)):
             glot.cmd_review(self._args(pot_file, fmt="json"))
         out = capsys.readouterr().out
         data = json.loads(out)
         assert isinstance(data, list)
-        assert any(item["issue"] == "Hardcoded number" for item in data)
+        assert any(item.get("ai_issue") == "Hardcoded number" for item in data)
