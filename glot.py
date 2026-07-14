@@ -370,7 +370,7 @@ def cmd_translate(args):
             for e in chunk
         ]
         prompt   = build_batch_prompt(items, args.lang, system_prompt)
-        response, usage = call_ai(prompt, system_prompt)
+        response, usage = call_ai(prompt, system_prompt, temperature=0.1)
         return idx, chunk, parse_batch_response(response, len(chunk)), usage
 
     failed       = []
