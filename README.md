@@ -14,10 +14,10 @@ Designed for WordPress translators — respects WordPress UI conventions, placeh
 **macOS** — prebuilt binary (replace `arm64` with `amd64` for Intel Macs):
 
 ```bash
-curl -L -o glot https://github.com/ernilambar/glot-cli/releases/latest/download/glot-darwin-arm64
+curl -fL -o glot https://github.com/ernilambar/glot-cli/releases/latest/download/glot-darwin-arm64
+xattr -d com.apple.quarantine glot 2>/dev/null || true
 chmod +x glot
 sudo mv glot /usr/local/bin/
-sudo xattr -d com.apple.quarantine /usr/local/bin/glot 2>/dev/null || true
 glot --version
 ```
 
