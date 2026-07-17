@@ -139,6 +139,20 @@ Bug reports and pull requests are welcome on [GitHub](https://github.com/ernilam
 2. Make your changes and test locally with `go test ./...`.
 3. Open a pull request with a clear description of what changed and why.
 
+### Manual Testing
+
+Before opening a PR, verify the key commands against a real `.po` file:
+
+```bash
+go run . status path/to/file.po
+go run . translate path/to/file.po --lang ne_NP --limit 1
+go run . review path/to/file.pot
+go run . glossary pull ne_NP
+go run . glossary list
+go run . core pull ne_NP
+go run . core list
+```
+
 ## Release
 
 Tags must be prefixed with `v` (e.g. `v1.0.1`). The release workflow triggers on `v*` tags only — an unprefixed tag like `1.0.1` will not build or publish binaries.
