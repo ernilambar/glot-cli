@@ -36,11 +36,11 @@ Thumbs.db
 *.zip
 *~
 
-# Python
-__pycache__/
-.venv/
-venv/
-*.egg-info/
+# Go
+/glot
+/glot-*
+/glot-cli
+/dist/
 
 # Project folders
 /build/

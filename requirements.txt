@@ -1,4 +1,0 @@
-polib        # PO file parsing
-requests     # HTTP client
-argcomplete  # Shell tab completion
-tabulate     # Terminal table rendering
