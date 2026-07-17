@@ -6,32 +6,36 @@ Designed for WordPress translators — respects WordPress UI conventions, placeh
 
 ## Requirements
 
-- Python 3.10+
+- Go 1.24+ (for building from source)
 - An OpenAI-compatible endpoint (e.g. LM Studio, Ollama, OpenAI, OpenRouter)
 
-## Setup
+## Install / Upgrade
 
-Install via [pipx](https://pipx.pypa.io) for a global `glot` command available from any directory:
-
-```bash
-brew install pipx
-pipx ensurepath
-pipx install -e /path/to/glot-cli
-```
-
-### Shell completions (optional)
-
-Add to your `.zshrc` or `.bashrc`:
+**macOS** — prebuilt binary (replace `arm64` with `amd64` for Intel Macs):
 
 ```bash
-eval "$(register-python-argcomplete glot)"
+curl -L -o glot https://github.com/ernilambar/glot-cli/releases/latest/download/glot-darwin-arm64
+chmod +x glot
+sudo mv glot /usr/local/bin/
+sudo xattr -d com.apple.quarantine /usr/local/bin/glot 2>/dev/null || true
+glot --version
 ```
+
+**From source** (requires Go 1.24+):
+
+```bash
+git clone https://github.com/ernilambar/glot-cli.git
+cd glot-cli
+go install .
+```
+
+The `glot` binary is installed to `$(go env GOPATH)/bin`. Make sure that directory is on your `PATH`.
 
 ## Environment variables
 
 | Variable | Required | Description |
 |---|---|---|
-| `GLOT_ENDPOINT_URL` | Yes | Chat completions URL, e.g. `http://127.0.0.1:1234/v1/chat/completions` |
+| `GLOT_ENDPOINT_URL` | Yes | Chat completions URL, e.g. `http://localhost:11434/v1/chat/completions` |
 | `GLOT_MODEL_ID` | Yes | Model ID to use |
 | `GLOT_API_KEY` | No | API key (omit for local models) |
 | `GLOT_LANG` | No | Default target language code, e.g. `ne_NP` |
@@ -132,10 +136,18 @@ Place a file at `$GLOT_DATA_DIR/prompts/<locale>.md` (default: `~/.config/glot-c
 Bug reports and pull requests are welcome on [GitHub](https://github.com/ernilambar/glot-cli).
 
 1. Fork the repo and create your branch from `main`.
-2. Make your changes and test locally.
+2. Make your changes and test locally with `go test ./...`.
 3. Open a pull request with a clear description of what changed and why.
+
+## Release
+
+Tags must be prefixed with `v` (e.g. `v1.0.1`). The release workflow triggers on `v*` tags only — an unprefixed tag like `1.0.1` will not build or publish binaries.
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
 
 ## License
 
 [MIT](LICENSE)
-
