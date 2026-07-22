@@ -63,6 +63,7 @@ Options:
 ```
 --lang   Target language code, e.g. ne_NP. Overrides GLOT_LANG. Required if GLOT_LANG is not set.
 --limit  Max strings this run, overrides GLOT_MAX_STRINGS
+--debug  Show raw technical detail alongside AI error messages
 ```
 
 ### Review strings for i18n issues
@@ -85,6 +86,7 @@ Total: 1 issue(s) in 45 string(s)
 
 ```
 --format   Output format: text (default), table, json, csv, markdown
+--debug    Show raw technical detail alongside AI error messages
 ```
 
 ### Check translation status
