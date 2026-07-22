@@ -26,7 +26,7 @@ import (
 	"time"
 )
 
-const VERSION = "1.0.0"
+const VERSION = "1.0.1"
 
 // ---------------------------------------------------------------------------
 // Configuration (populated from environment at startup)
@@ -45,6 +45,7 @@ var (
 	glotBatchSize      = 10
 	glotConcurrency    = 1
 	glotRequestTimeout = 120 // seconds; 0 disables timeout
+	glotDebug          bool
 )
 
 var coreProjects = []string{
@@ -312,6 +313,8 @@ func buildBatchPrompt(items []batchItem, targetLang string, systemPrompt string)
 	}
 	numbered := strings.TrimRight(b.String(), "\n")
 
+	const formatInstruction = "Return ONLY a JSON object mapping number strings to translations: {\"1\": \"...\", \"2\": \"...\"}. No explanation, no extra text."
+
 	if systemPrompt != "" {
 		glossaryBlock := ""
 		if len(seenOrder) > 0 {
@@ -321,7 +324,7 @@ func buildBatchPrompt(items []batchItem, targetLang string, systemPrompt string)
 			}
 			glossaryBlock = "Approved terms:\n" + strings.Join(lines, "\n") + "\n\n"
 		}
-		return glossaryBlock + "Translate each numbered string:\n" + numbered
+		return glossaryBlock + "Translate each numbered string:\n" + numbered + "\n\n" + formatInstruction
 	}
 
 	glossaryBlock := ""
@@ -345,8 +348,7 @@ func buildBatchPrompt(items []batchItem, targetLang string, systemPrompt string)
 			"2. String type: commands/buttons → imperative verb form; labels/statuses/nouns → concise word or phrase, no added verb; sentences → natural sentence.\n"+
 			"3. Placeholders: keep exactly as-is — printf variables (%%s, %%d, %%1$s), template variables ({{name}}, {{{{email}}}}), HTML tags, HTML entities (&amp;, &lt;, &gt;, &quot;), WordPress shortcodes, plugin/theme names, URLs.\n"+
 			"4. Glossary: if approved terms are listed, copy them exactly — no synonyms, no alternatives.\n"+
-			"Return ONLY a JSON object mapping number strings to translations: {\"1\": \"...\", \"2\": \"...\"}. "+
-			"No explanation, no extra text.%s\n\n%s",
+			formatInstruction+"%s\n\n%s",
 		targetLang, glossaryBlock, numbered,
 	)
 }
@@ -457,6 +459,20 @@ type usageInfo struct {
 	TotalTokens      int
 }
 
+// aiError carries a plain-English message for default output plus raw
+// technical detail that's only shown when --debug is passed.
+type aiError struct {
+	Friendly string
+	Detail   string
+}
+
+func (e *aiError) Error() string {
+	if glotDebug && e.Detail != "" {
+		return fmt.Sprintf("%s (%s)", e.Friendly, e.Detail)
+	}
+	return e.Friendly
+}
+
 // callAI is a var so tests can inject a mock.
 var callAI = defaultCallAI
 
@@ -492,24 +508,38 @@ func defaultCallAI(prompt string, systemPrompt string, temperature float64) (str
 
 		resp, err := client.Do(req)
 		if err != nil {
-			lastErr = err
-			return "", nil, err
+			aerr := &aiError{Friendly: "could not reach AI endpoint — check GLOT_ENDPOINT_URL and your network connection", Detail: err.Error()}
+			lastErr = aerr
+			return "", nil, aerr
 		}
 		if resp.StatusCode == 429 {
 			resp.Body.Close()
+			lastErr = &aiError{Friendly: "AI endpoint is rate-limiting requests — try again later or lower GLOT_CONCURRENCY"}
 			time.Sleep(time.Duration(1<<attempt) * time.Second)
 			continue
 		}
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			buf, _ := io.ReadAll(io.LimitReader(resp.Body, 500))
 			resp.Body.Close()
-			return "", nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(buf)))
+			detail := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(buf)))
+			var friendly string
+			switch resp.StatusCode {
+			case 401, 403:
+				friendly = "AI endpoint rejected the request — check GLOT_API_KEY"
+			case 404:
+				friendly = "AI endpoint not found — check GLOT_ENDPOINT_URL"
+			case 400:
+				friendly = "AI endpoint rejected the request — check GLOT_MODEL_ID"
+			default:
+				friendly = fmt.Sprintf("AI endpoint returned an error (HTTP %d)", resp.StatusCode)
+			}
+			return "", nil, &aiError{Friendly: friendly, Detail: detail}
 		}
 
 		data, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return "", nil, err
+			return "", nil, &aiError{Friendly: "AI returned an unexpected response", Detail: err.Error()}
 		}
 		var parsed struct {
 			Choices []struct {
@@ -524,10 +554,10 @@ func defaultCallAI(prompt string, systemPrompt string, temperature float64) (str
 			} `json:"usage"`
 		}
 		if err := json.Unmarshal(data, &parsed); err != nil {
-			return "", nil, err
+			return "", nil, &aiError{Friendly: "AI returned an unexpected response", Detail: err.Error()}
 		}
 		if len(parsed.Choices) == 0 {
-			return "", nil, fmt.Errorf("no choices in response")
+			return "", nil, &aiError{Friendly: "AI returned an unexpected response", Detail: "no choices in response"}
 		}
 		content := strings.TrimSpace(parsed.Choices[0].Message.Content)
 		var usage *usageInfo
@@ -1572,7 +1602,9 @@ func runTranslate(rest []string) {
 	fs := newFlagSet("translate")
 	lang := fs.String("lang", glotLang, "Target locale code (overrides GLOT_LANG)")
 	limit := fs.Int("limit", 0, "Max strings this run (0 = GLOT_MAX_STRINGS)")
+	debug := fs.Bool("debug", false, "Show raw technical detail alongside error messages")
 	_ = fs.Parse(normalizeArgs(rest))
+	glotDebug = *debug
 	if fs.NArg() < 1 {
 		fmt.Fprintln(os.Stderr, "Error: input .po file is required")
 		osExit(2)
@@ -1587,7 +1619,9 @@ func runTranslate(rest []string) {
 func runReview(rest []string) {
 	fs := newFlagSet("review")
 	format := fs.String("format", "text", "Output format: text, table, json, csv, markdown")
+	debug := fs.Bool("debug", false, "Show raw technical detail alongside error messages")
 	_ = fs.Parse(normalizeArgs(rest))
+	glotDebug = *debug
 	if fs.NArg() < 1 {
 		fmt.Fprintln(os.Stderr, "Error: input .po/.pot file is required")
 		osExit(2)
