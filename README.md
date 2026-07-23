@@ -4,8 +4,7 @@ CLI tool for translating WordPress PO files using any OpenAI-compatible backend 
 
 ## Requirements
 
-- Node.js 22.18+ and Bun (for building from source)
-- An OpenAI-compatible endpoint (e.g. LM Studio, Ollama, OpenAI, OpenRouter)
+- An OpenAI-compatible endpoint (e.g. OpenAI, Ollama, LM Studio, OpenRouter)
 
 ## Install / Upgrade
 
@@ -27,7 +26,7 @@ sudo mv glot /usr/local/bin/
 glot --version
 ```
 
-**From source** (requires [Bun](https://bun.sh)):
+**From source** (requires Node.js 22.18+ and [Bun](https://bun.sh)):
 
 ```bash
 git clone https://github.com/ernilambar/glot-cli.git
@@ -41,7 +40,7 @@ sudo mv dist/glot /usr/local/bin/
 
 | Variable | Required | Description |
 |---|---|---|
-| `GLOT_ENDPOINT_URL` | Yes | OpenAI-compatible base URL, e.g. `http://localhost:11434/v1` |
+| `GLOT_ENDPOINT_URL` | Yes | OpenAI-compatible base URL, e.g. `https://api.openai.com/v1` (OpenAI) or `http://localhost:11434/v1` (Ollama) |
 | `GLOT_MODEL_ID` | Yes | Model ID to use |
 | `GLOT_API_KEY` | No | API key (omit for local models) |
 | `GLOT_LANG` | No | Default target language code, e.g. `ne_NP` |
@@ -93,6 +92,21 @@ Total: 1 issue(s) in 45 string(s)
 ```
 --format   Output format: text (default), table, json, csv, markdown
 --debug    Show raw technical detail alongside AI error messages
+```
+
+### Browse and edit a PO file in the browser
+
+```bash
+glot browse path/to/file.po --lang ne_NP
+```
+
+Opens a browser-based editor for viewing and editing entries. Editing/saving works without `--lang`; it's only needed for AI-translate from the browser.
+
+```
+--lang    Target locale code, e.g. ne_NP. Overrides GLOT_LANG.
+--port    Port to serve on (default: 49700)
+--no-open Don't open the browser automatically
+--debug   Show raw technical detail alongside AI error messages
 ```
 
 ### Check translation status
