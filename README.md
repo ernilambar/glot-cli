@@ -9,6 +9,14 @@ CLI tool for translating WordPress PO files using any OpenAI-compatible backend 
 
 ## Install / Upgrade
 
+**macOS** — Homebrew:
+
+```bash
+brew tap ernilambar/tap
+brew trust ernilambar/tap
+brew install ernilambar/tap/glot
+```
+
 **macOS** — prebuilt binary (replace `arm64` with `amd64` for Intel Macs):
 
 ```bash
