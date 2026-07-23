@@ -84,7 +84,10 @@ test("findCoreMatches: collects distinct translations across contexts, ignoring 
     "widget\x04Search": "खोज", // duplicate value — deduped
     Home: "गृहपृष्ठ",
   };
-  assert.deepEqual(findCoreMatches(core, "Search"), ["खोज", "खोजी गर्नुहोस्"]);
+  assert.deepEqual(findCoreMatches(core, "Search"), [
+    { value: "खोज", ctxt: "" },
+    { value: "खोजी गर्नुहोस्", ctxt: "menu" },
+  ]);
 });
 
 test("findCoreMatches: empty when nothing matches", () => {

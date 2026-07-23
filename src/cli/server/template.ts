@@ -1,5 +1,5 @@
 import { VERSION } from "../../core/config.ts";
-import type { EditorRow } from "../../core/operations/serveEditor.ts";
+import type { CoreMatch, EditorRow } from "../../core/operations/serveEditor.ts";
 import { FAVICON_BASE64, STYLE_CSS, SCRIPT_JS } from "./assets.ts";
 
 export function escapeHtml(s: string): string {
@@ -43,15 +43,19 @@ function renderMsgidCol(row: EditorRow): string {
   return parts.join("");
 }
 
-function renderApprovedSuggestions(matches: string[] | undefined): string {
+function renderApprovedSuggestions(matches: CoreMatch[] | undefined, currentValue: string): string {
   if (!matches || matches.length === 0) {
     return "";
   }
+  // A single core suggestion identical to what's already in the box adds nothing.
+  if (matches.length === 1 && matches[0].value === currentValue) {
+    return "";
+  }
   return matches
-    .map(
-      (m) =>
-        `<div class="translate-suggestion approved" data-suggestion="${escapeHtml(m)}" title="Click to use this translation"><span class="suggestion-tag">WP</span>${escapeHtml(m)}</div>`,
-    )
+    .map((m) => {
+      const context = m.ctxt !== "" ? ` <span class="row-context">${escapeHtml(m.ctxt)}</span>` : "";
+      return `<div class="translate-suggestion approved" data-suggestion="${escapeHtml(m.value)}" title="Click to use this translation"><span class="suggestion-tag">WP</span>${escapeHtml(m.value)}${context}</div>`;
+    })
     .join("");
 }
 
@@ -107,7 +111,7 @@ function renderRow(row: EditorRow, nplurals: number, glotEnabled: boolean): stri
           <textarea name="entry_${row.displayPos}_msgstr" rows="${textareaRows(e.msgStr)}">${escapeHtml(e.msgStr)}</textarea>
           <button type="button" class="icon-btn" data-fill="${escapeHtml(e.msgId)}" title="Copy source to translation">${ICON_FILL}</button>
           ${renderTranslateButton(e.msgId, glotEnabled)}
-          ${renderApprovedSuggestions(row.coreMatches)}
+          ${renderApprovedSuggestions(row.coreMatches, e.msgStr)}
         </div>
       </div>`;
   }
