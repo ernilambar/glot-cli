@@ -5,10 +5,9 @@ export interface HttpGetResult {
   ok: boolean;
 }
 
-// Ported from main.go's httpGet: only treats HTTP 200 as ok, absolute
-// http(s) URLs only. Not part of `deps` — main.go never made this swappable
-// either, and its own test suite only covers locale validation around these
-// call sites, never the network path itself.
+// Only treats HTTP 200 as ok, absolute http(s) URLs only. Not part of
+// `deps` — tests cover locale validation around these call sites, not
+// the network path itself.
 export async function httpGet(url: string): Promise<HttpGetResult> {
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
     return { body: "", ok: false };

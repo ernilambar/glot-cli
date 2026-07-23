@@ -8,15 +8,12 @@ export const exitDeps = {
 };
 
 // Thin wrapper around exitDeps.exit so call sites don't need to know about
-// the swap point, matching Go's osExit indirection.
+// the swap point.
 export function exit(code: number): never {
   return exitDeps.exit(code);
 }
 
-// GlotValidationError -> 2, GlotRuntimeError -> 1: a deliberate cleanup of
-// main.go's exit codes (which used osExit(1) almost everywhere and osExit(2)
-// only in the raw arg-parsing layer) rather than a byte-for-byte port — see
-// core/errors.ts for the rationale.
+// GlotValidationError -> 2, GlotRuntimeError -> 1 — see core/errors.ts for the rationale.
 export function handleError(err: unknown, debug = false): never {
   let message = err instanceof Error ? err.message : String(err);
   if (debug && err instanceof GlotRuntimeError && err.detail) {

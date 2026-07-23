@@ -45,7 +45,7 @@ export function runCoreList(config: GlotConfig): CoreListResult {
         count = Object.keys(m).length;
       }
     } catch {
-      // matches main.go swallowing json.Unmarshal errors and leaving m at zero value
+      // malformed JSON leaves count at 0 rather than failing the whole listing
     }
     return { locale: name.slice(0, -".json".length), lastUpdated: mtime.toISOString().slice(0, 10), entries: count };
   });

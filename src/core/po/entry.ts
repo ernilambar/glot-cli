@@ -38,8 +38,8 @@ export function hasTranslatorComment(e: Entry): boolean {
 }
 
 // Core-translation-cache key: msgctxt and msgid joined by ASCII EOT (\x04) when
-// a context is present, matching main.go's inline `key` construction used by
-// translate/status/corePull to disambiguate same-msgid entries in different contexts.
+// a context is present, used by translate/status/corePull to disambiguate
+// same-msgid entries in different contexts.
 export function coreCacheKey(e: Pick<Entry, "msgCtxt" | "msgId">): string {
   return e.msgCtxt !== "" ? `${e.msgCtxt}\x04${e.msgId}` : e.msgId;
 }

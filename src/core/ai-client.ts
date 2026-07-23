@@ -16,11 +16,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Ported 1:1 from main.go's defaultCallAI: a plain POST to the full
-// GLOT_ENDPOINT_URL (not a "base URL" — the openai SDK's baseURL would
-// double-append /chat/completions onto what users already configure as the
-// complete endpoint, per README.md), 3-attempt retry on HTTP 429 with a
-// 1<<attempt second backoff, and the same friendly-vs-debug error mapping.
+// GLOT_ENDPOINT_URL is a base URL (e.g. http://localhost:11434/v1) — the
+// standard OpenAI-compatible convention. /chat/completions is appended here.
+// 3-attempt retry on HTTP 429 with a 1<<attempt second backoff, and
+// friendly-vs-debug error mapping on failure.
 export async function callAI(
   config: GlotConfig,
   prompt: string,
@@ -44,12 +43,14 @@ export async function callAI(
     headers["Authorization"] = `Bearer ${config.apiKey}`;
   }
 
+  const url = `${config.endpointUrl.replace(/\/+$/, "")}/chat/completions`;
+
   let lastError: GlotRuntimeError | undefined;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     let response: Response;
     try {
-      response = await fetch(config.endpointUrl, {
+      response = await fetch(url, {
         method: "POST",
         headers,
         body,
