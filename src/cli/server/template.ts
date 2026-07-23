@@ -1,3 +1,4 @@
+import { VERSION } from "../../core/config.ts";
 import type { EditorRow } from "../../core/operations/serveEditor.ts";
 import { STYLE_CSS, SCRIPT_JS } from "./assets.ts";
 
@@ -159,12 +160,12 @@ export function renderPage(rows: EditorRow[], opts: RenderPageOptions): string {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Glot Editor</title>
+<title>${escapeHtml(opts.filename)} - Glot Editor</title>
 <style>${STYLE_CSS}</style>
 </head>
 <body>
 <header>
-  <h1>Glot Editor</h1>
+  <h1><a href="/">Glot Editor</a> <span class="version">(${VERSION})</span></h1>
   <span class="filename">${escapeHtml(opts.filename)}</span>
   ${filterGroup}
   ${saveButton}

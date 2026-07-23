@@ -55,6 +55,17 @@ header h1 {
 	letter-spacing: .2px;
 }
 
+header h1 a {
+	color: inherit;
+	text-decoration: none;
+}
+
+header h1 .version {
+	font-size: 11px;
+	font-weight: 400;
+	color: var(--muted);
+}
+
 header .filename {
 	font-family: var(--mono);
 	font-size: 12px;
