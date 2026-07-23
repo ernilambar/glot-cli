@@ -5,49 +5,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Build
-go build -o glot .
-
-# Install as `glot` on PATH
-go install .
-
-# Run all tests
-go test ./...
-
-# Run a specific test
-go test -run TestParseBatchResponse_JSON -v
-
-# Vet
-go vet ./...
+bun install          # install deps
+bun run build        # compiled binary -> dist/glot
+node src/index.ts <command> [options]   # run from source
+node --test          # run all tests
+npm run typecheck
 ```
 
 ## Architecture
 
-The tool is a small Go program split into two files:
+TypeScript, built via Bun (`bun build --compile`), tested on native Node (`node --test`, no `tsx`/`ts-node`).
 
-- `main.go` — CLI entry, config from env, and all subcommand handlers (translate, review, status, glossary, core).
-- `po.go` — In-repo PO parser and writer. Handles msgid/msgstr/msgctxt, plural forms, translator/extracted comments, references, fuzzy flag, and multi-line continuation. Order-preserving on save.
+- `src/core/` — no `process.env`, no printing, no `process.exit`. Takes `GlotConfig` explicitly.
+- `src/cli/` — the only layer touching env/stdout/exit. `cli/env.ts` builds `GlotConfig`; `cli/commands/*.ts`
+  call `core/operations/*.ts`, print results, map errors to exit codes; `cli/cli.ts` wires it to `yargs`.
 
-**Data flow for `glot translate`:**
-1. Load glossary (`~/.config/glot-cli/glossary/<locale>.tsv`) and core translations (`~/.config/glot-cli/core/<locale>.json`).
-2. Apply core translations directly — no AI call for those strings.
-3. Remaining untranslated entries are batched (`GLOT_BATCH_SIZE`, default 10) and sent concurrently (`GLOT_CONCURRENCY`) to an OpenAI-compatible endpoint.
-4. Each batch uses `buildBatchPrompt()` which injects matched glossary terms inline.
-5. Responses parsed by `parseBatchResponse()` — tries JSON first, falls back to numbered-list regex.
+`core/operations/*.ts` (`runTranslate`, `runReview`, `runStatus`, `runGlossaryPull`, `runCorePull`) return a
+result object and take an optional `onEvent()` callback for progress — they never print or exit.
 
-**Data flow for `glot review`:**
-1. Static pass: flags `%s`/`%d` placeholders without a translator/extracted comment.
-2. AI pass: `buildReviewPrompt()` sends all msgids in batches; response is a JSON map of string-index → issue description.
-3. Results merged and rendered via `outputReviewReport()` (text/table/json/csv/markdown).
+**PO parsing (`core/po/`):** `gettext-parser` handles field syntax, but its parsed output is grouped by
+`[msgctxt][msgid]`, which loses file order across interleaved contexts. `core/po/blocks.ts` splits raw text
+into per-entry blocks first; each block is parsed individually so order comes from the block list, not
+gettext-parser's grouping. The writer is hand-rolled (not `compile()`, which reorders and folds long lines) —
+required for the idempotence/minimal-diff guarantee in `test/core/po.test.ts`.
 
-**Key prompt functions:**
-- `buildBatchPrompt()` — translation prompt; respects custom system prompt override from `~/.config/glot-cli/prompts/<locale>.md`.
-- `buildReviewPrompt()` — i18n review prompt; flags hardcoded numbers/dates/paths and embedded URLs (not strings that are entirely a URL).
+**Dependency injection:** `core/deps.ts` exports a mutable `deps` object (`callAI`, `loadCoreTranslations`,
+`loadValidLanguages`) so tests can swap them — ES export bindings can't be reassigned directly. Same pattern
+for `cli/exit.ts`'s `exitDeps.exit`.
 
-**Configuration:** All runtime config comes from environment variables (`GLOT_ENDPOINT_URL`, `GLOT_MODEL_ID`, `GLOT_API_KEY`, etc.). No config file.
+**Errors → exit codes:** `GlotValidationError` (bad input) → 2, `GlotRuntimeError` (I/O/AI failure) → 1.
 
-**Language validation:** `data/languages.json` is embedded via `//go:embed` and is the source of truth for valid locale codes. `validateLang()` checks against it.
-
-**Testability:** `callAI`, `loadCoreTranslations`, `loadValidLanguages`, and `osExit` are package-level `var`s so tests can substitute them without needing dependency injection plumbing.
-
-**Dependency:** `github.com/leonelquinteros/gotext` is used only for `EscapeSpecialCharacters` when writing PO strings. The parser is in-repo.
+**Known gap:** obsolete (`#~`) PO entries aren't round-tripped faithfully.
