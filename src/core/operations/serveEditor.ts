@@ -17,7 +17,12 @@ export interface EditorRow {
   // Approved translations for this row's msgid, pulled from the core cache —
   // attached by the caller (buildEditorView leaves this unset), since it
   // needs config/lang that buildEditorView doesn't take.
-  coreMatches?: string[];
+  coreMatches?: CoreMatch[];
+}
+
+export interface CoreMatch {
+  value: string;
+  ctxt: string;
 }
 
 function entryStatus(e: Entry): EntryStatus {
@@ -40,14 +45,16 @@ export function buildEditorView(pf: PoFile): EditorRow[] {
 // WordPress core's catalogs when the same English string is used under
 // different contexts — this surfaces all of them, ignoring ctxt, so the
 // editor can show every officially-approved candidate for a row.
-export function findCoreMatches(core: Record<string, string>, msgId: string): string[] {
+export function findCoreMatches(core: Record<string, string>, msgId: string): CoreMatch[] {
   const seen = new Set<string>();
-  const out: string[] = [];
+  const out: CoreMatch[] = [];
   for (const [key, value] of Object.entries(core)) {
-    const keyMsgId = key.includes("\x04") ? key.slice(key.indexOf("\x04") + 1) : key;
+    const sep = key.indexOf("\x04");
+    const keyMsgId = sep === -1 ? key : key.slice(sep + 1);
+    const ctxt = sep === -1 ? "" : key.slice(0, sep);
     if (keyMsgId === msgId && value !== "" && !seen.has(value)) {
       seen.add(value);
-      out.push(value);
+      out.push({ value, ctxt });
     }
   }
   return out;

@@ -1,5 +1,8 @@
 # Changelog
 
+## X.X.X - YYYY-MM-DD
+- Changed: hide redundant single-match suggestions
+
 ## 1.0.3 - 2026-07-23
 - Added: `browse` sub-command to open PO file in the browser.
 
