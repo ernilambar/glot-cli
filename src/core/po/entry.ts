@@ -37,6 +37,16 @@ export function hasTranslatorComment(e: Entry): boolean {
   return e.translatorComments.length > 0 || e.extractedComments.length > 0;
 }
 
+// Reads "Plural-Forms: nplurals=N; ..." from the header entry's msgstr; 2 if absent.
+export function detectPluralCount(entries: Entry[]): number {
+  const header = entries.find((e) => e.isHeader);
+  if (!header) {
+    return 2;
+  }
+  const m = header.msgStr.match(/nplurals\s*=\s*(\d+)/);
+  return m ? Number(m[1]) : 2;
+}
+
 // Core-translation-cache key: msgctxt and msgid joined by ASCII EOT (\x04) when
 // a context is present, used by translate/status/corePull to disambiguate
 // same-msgid entries in different contexts.

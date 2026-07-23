@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { hasTranslatorComment, occurrences } from "../../src/core/po/entry.ts";
+import { detectPluralCount, hasTranslatorComment, occurrences } from "../../src/core/po/entry.ts";
 import { parsePo } from "../../src/core/po/parser.ts";
 import { PoFile } from "../../src/core/po/poFile.ts";
 import type { Entry } from "../../src/core/po/types.ts";
@@ -178,6 +178,41 @@ test("Entry: occurrences", () => {
   assert.equal(occs.length, 2);
   assert.deepEqual(occs[0], ["src/a.php", "10"]);
   assert.deepEqual(occs[1], ["src/b.php", "20"]);
+});
+
+function makeEntry(overrides: Partial<Entry>): Entry {
+  return {
+    msgCtxt: "",
+    msgId: "",
+    msgIdPlural: "",
+    msgStr: "",
+    msgStrPlural: {},
+    translatorComments: [],
+    extractedComments: [],
+    references: [],
+    flags: [],
+    obsolete: false,
+    commentOrder: [],
+    isHeader: false,
+    ...overrides,
+  };
+}
+
+test("Entry: detectPluralCount reads Plural-Forms from the header", () => {
+  const entries = [
+    makeEntry({ isHeader: true, msgStr: "Plural-Forms: nplurals=1; plural=0;\n" }),
+    makeEntry({ msgId: "item" }),
+  ];
+  assert.equal(detectPluralCount(entries), 1);
+});
+
+test("Entry: detectPluralCount defaults to 2 without a header", () => {
+  assert.equal(detectPluralCount([makeEntry({ msgId: "item" })]), 2);
+});
+
+test("Entry: detectPluralCount defaults to 2 when header has no Plural-Forms", () => {
+  const entries = [makeEntry({ isHeader: true, msgStr: "Content-Type: text/plain\n" })];
+  assert.equal(detectPluralCount(entries), 2);
 });
 
 test("Entry: hasTranslatorComment", () => {
