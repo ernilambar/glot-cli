@@ -6,7 +6,7 @@ import { GlotRuntimeError } from "../../src/core/errors.ts";
 
 function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
   return {
-    endpointUrl: "http://fake/v1/chat/completions",
+    endpointUrl: "http://fake/v1",
     modelId: "test-model",
     apiKey: "",
     lang: "",
@@ -26,6 +26,16 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
+
+test("callAI: appends /chat/completions to the base URL", async (t) => {
+  let requestedUrl: string | undefined;
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    requestedUrl = url;
+    return jsonResponse({ choices: [{ message: { content: "ok" } }] });
+  });
+  await callAI(baseConfig({ endpointUrl: "http://fake/v1/" }), "prompt", "", 0.1);
+  assert.equal(requestedUrl, "http://fake/v1/chat/completions");
+});
 
 test("callAI: success with usage", async (t) => {
   t.mock.method(globalThis, "fetch", async () =>

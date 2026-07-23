@@ -8,7 +8,7 @@ import type { Entry } from "../../src/core/po/types.ts";
 import { marshalPo } from "../../src/core/po/writer.ts";
 
 // ---------------------------------------------------------------------------
-// Ported 1:1 from po_test.go
+// Core PO parsing/marshaling behavior
 // ---------------------------------------------------------------------------
 
 test("ParsePo: basic header", () => {
@@ -201,9 +201,8 @@ test("Entry: hasTranslatorComment", () => {
 });
 
 // ---------------------------------------------------------------------------
-// New: idempotence + minimal-diff acceptance criteria (not in the Go suite —
-// po.go's own writer is order-preserving by construction, so it never needed
-// these; gettext-parser's grouped output makes both worth asserting here).
+// Idempotence + minimal-diff acceptance criteria — gettext-parser's grouped
+// output makes both worth asserting here.
 // ---------------------------------------------------------------------------
 
 const roundTripFixture = `msgid ""
@@ -279,10 +278,10 @@ function idempotent(name: string, src: string) {
   });
 }
 
-idempotent("round-trip fixture (po_test.go)", roundTripFixture);
-idempotent("statusPO fixture (main_test.go)", statusPO);
-idempotent("potContent fixture (main_test.go)", potContent);
-idempotent("plural fixture (po_test.go)", pluralFixture);
+idempotent("round-trip fixture (interleaved contexts)", roundTripFixture);
+idempotent("statusPO fixture", statusPO);
+idempotent("potContent fixture (comment ordering)", potContent);
+idempotent("plural fixture", pluralFixture);
 
 const realWorldPoPath = new URL("./fixtures/classic-editor-ne.po", import.meta.url);
 

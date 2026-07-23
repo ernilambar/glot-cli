@@ -31,8 +31,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
 const fakeLanguages = { ne_NP: "Nepali", es_ES: "Spanish (Spain)" };
 
 // ---------------------------------------------------------------------------
-// Locale validation only — matches Go's own test scope. Neither Go's suite
-// nor this one mocks the network fetch path itself.
+// Locale validation only — the network fetch path itself isn't mocked here.
 // ---------------------------------------------------------------------------
 
 test("runGlossaryPull: no locale throws GlotValidationError", async () => {
@@ -62,8 +61,7 @@ test("runCorePull: invalid locale throws GlotValidationError", async (t) => {
 });
 
 // ---------------------------------------------------------------------------
-// Local filesystem listing — no network involved, so fully testable (Go's
-// suite never covered cmdGlossaryList/cmdCoreList at all).
+// Local filesystem listing — no network involved, so fully testable.
 // ---------------------------------------------------------------------------
 
 test("runGlossaryList: directory not found", () => {

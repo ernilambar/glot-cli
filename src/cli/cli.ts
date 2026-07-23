@@ -36,7 +36,7 @@ COMMANDS
   -h, --help      Show this help.
 
 ENVIRONMENT
-  GLOT_ENDPOINT_URL   OpenAI-compatible chat/completions URL (required)
+  GLOT_ENDPOINT_URL   OpenAI-compatible base URL, e.g. http://host/v1 (required)
   GLOT_MODEL_ID       Model ID (required)
   GLOT_API_KEY        API key (optional for local backends)
   GLOT_LANG           Default target locale code (e.g. ne_NP)

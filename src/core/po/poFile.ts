@@ -4,7 +4,7 @@ import { parsePo } from "./parser.ts";
 import type { Entry } from "./types.ts";
 import { marshalPo } from "./writer.ts";
 
-// Mirrors po.go's PoFile: an ordered, order-preserving collection of entries.
+// An ordered, order-preserving collection of entries.
 export class PoFile {
   entries: Entry[];
   private trailingNewline: boolean;

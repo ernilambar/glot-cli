@@ -32,10 +32,9 @@ function csvRow(fields: string[]): string {
 }
 
 // Generic tabwriter-style column layout: pads every column but the last to
-// the widest line across all rows (matching Go's text/tabwriter with
-// padding=2), and — unlike Go's tabwriter, which mis-splits rows whose cell
-// contains an embedded "\n" (multi-occurrence review entries) — renders
-// multi-line cells as aligned sub-rows instead of corrupting the layout.
+// the widest line across all rows (padding=2), and renders multi-line cells
+// (multi-occurrence review entries contain embedded "\n") as aligned
+// sub-rows instead of corrupting the layout.
 function renderTable(rows: string[][], padding: number): string {
   const numCols = rows[0]?.length ?? 0;
   const splitRows = rows.map((row) => row.map((cell) => cell.split("\n")));

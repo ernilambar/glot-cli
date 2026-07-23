@@ -139,7 +139,7 @@ export async function runTranslate(
       copyFileSync(input, backupPath);
       onEvent?.({ type: "backupCreated", path: backupPath });
     } catch {
-      // Backup failures are silently ignored, matching main.go's `if err == nil` guard.
+      // Backup failures are silently ignored — translation proceeds either way.
     }
   }
 

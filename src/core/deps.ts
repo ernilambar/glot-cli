@@ -3,9 +3,9 @@ import { loadCoreTranslations as defaultLoadCoreTranslations } from "./core-tran
 import { loadValidLanguages as defaultLoadValidLanguages } from "./languages.ts";
 
 // Mutable swap-point object: production code calls deps.callAI(...), never
-// the underlying function directly, so tests can substitute mocks — the same
-// shape as Go's package-level var indirection (callAI, loadCoreTranslations,
-// loadValidLanguages), just as an object instead of separate module-level vars.
+// the underlying function directly, so tests can substitute mocks — ES export
+// bindings can't be reassigned directly, so this uses one mutable object
+// instead of separate module-level vars.
 export const deps = {
   callAI: defaultCallAI,
   loadCoreTranslations: defaultLoadCoreTranslations,

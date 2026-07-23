@@ -16,9 +16,9 @@ function parseIntEnv(value: string | undefined, fallback: number): number {
   return Number.isInteger(n) ? n : fallback;
 }
 
-// Ported from main.go's loadConfig — the only place in the CLI layer that
-// reads process.env, per the core/cli boundary: core/ takes GlotConfig as an
-// explicit parameter and never reads the environment itself.
+// The only place in the CLI layer that reads process.env, per the core/cli
+// boundary: core/ takes GlotConfig as an explicit parameter and never reads
+// the environment itself.
 export function loadConfigFromEnv(): GlotConfig {
   const dataDir = process.env.GLOT_DATA_DIR || join(homedir(), ".config", "glot-cli");
 

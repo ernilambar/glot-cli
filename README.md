@@ -1,8 +1,6 @@
 # glot-cli
 
-CLI tool for translating WordPress `.po` files using any OpenAI-compatible backend (local or remote).
-
-Designed for WordPress translators — respects WordPress UI conventions, placeholder syntax, and pulls glossaries directly from translate.wordpress.org.
+CLI tool for translating WordPress PO files using any OpenAI-compatible backend (local or remote).
 
 ## Requirements
 
@@ -35,7 +33,7 @@ sudo mv dist/glot /usr/local/bin/
 
 | Variable | Required | Description |
 |---|---|---|
-| `GLOT_ENDPOINT_URL` | Yes | Chat completions URL, e.g. `http://localhost:11434/v1/chat/completions` |
+| `GLOT_ENDPOINT_URL` | Yes | OpenAI-compatible base URL, e.g. `http://localhost:11434/v1` |
 | `GLOT_MODEL_ID` | Yes | Model ID to use |
 | `GLOT_API_KEY` | No | API key (omit for local models) |
 | `GLOT_LANG` | No | Default target language code, e.g. `ne_NP` |

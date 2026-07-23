@@ -1,10 +1,9 @@
 import type { Entry } from "./types.ts";
 
-// Ported from gotext.EscapeSpecialCharacters as actually exercised by
-// po.go's writePOField: values are always pre-split on "\n" before reaching
-// this function, so only the unescaped-double-quote regex ever fires. Matches
-// Go's escaping exactly, quirks included (e.g. a leading quote at index 0 is
-// not escaped, since the Go regex requires a preceding non-backslash char).
+// Values are always pre-split on "\n" before reaching this function, so only
+// the unescaped-double-quote regex ever fires. Quirk preserved intentionally:
+// a leading quote at index 0 is not escaped, since the regex requires a
+// preceding non-backslash character.
 function escapeSpecialCharacters(s: string): string {
   return s.replace(/([^\\])(")/g, '$1\\"');
 }
