@@ -22,6 +22,7 @@ Thumbs.db
 
 # Ignored extensions
 *.bak
+*.bun-build
 *.cache
 *.diff
 *.err
@@ -36,14 +37,9 @@ Thumbs.db
 *.zip
 *~
 
-# Go
-/glot
-/glot-*
-/glot-cli
 /dist/
 
 # Project folders
 /build/
 /deploy/
 /node_modules/
-/vendor/

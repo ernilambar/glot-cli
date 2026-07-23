@@ -6,7 +6,7 @@ Designed for WordPress translators — respects WordPress UI conventions, placeh
 
 ## Requirements
 
-- Go 1.24+ (for building from source)
+- Node.js 22.18+ and Bun (for building from source)
 - An OpenAI-compatible endpoint (e.g. LM Studio, Ollama, OpenAI, OpenRouter)
 
 ## Install / Upgrade
@@ -21,15 +21,15 @@ sudo mv glot /usr/local/bin/
 glot --version
 ```
 
-**From source** (requires Go 1.24+):
+**From source** (requires [Bun](https://bun.sh)):
 
 ```bash
 git clone https://github.com/ernilambar/glot-cli.git
 cd glot-cli
-go install .
+bun install
+bun run build
+sudo mv dist/glot /usr/local/bin/
 ```
-
-The `glot` binary is installed to `$(go env GOPATH)/bin`. Make sure that directory is on your `PATH`.
 
 ## Environment variables
 
@@ -138,7 +138,7 @@ Place a file at `$GLOT_DATA_DIR/prompts/<locale>.md` (default: `~/.config/glot-c
 Bug reports and pull requests are welcome on [GitHub](https://github.com/ernilambar/glot-cli).
 
 1. Fork the repo and create your branch from `main`.
-2. Make your changes and test locally with `go test ./...`.
+2. Make your changes and test locally with `node --test`.
 3. Open a pull request with a clear description of what changed and why.
 
 ### Manual Testing
@@ -146,13 +146,13 @@ Bug reports and pull requests are welcome on [GitHub](https://github.com/ernilam
 Before opening a PR, verify the key commands against a real `.po` file:
 
 ```bash
-go run . status path/to/file.po
-go run . translate path/to/file.po --lang ne_NP --limit 1
-go run . review path/to/file.pot
-go run . glossary pull ne_NP
-go run . glossary list
-go run . core pull ne_NP
-go run . core list
+node src/index.ts status path/to/file.po
+node src/index.ts translate path/to/file.po --lang ne_NP --limit 1
+node src/index.ts review path/to/file.pot
+node src/index.ts glossary pull ne_NP
+node src/index.ts glossary list
+node src/index.ts core pull ne_NP
+node src/index.ts core list
 ```
 
 ## Release
