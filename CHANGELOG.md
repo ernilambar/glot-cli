@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.3 - 2026-07-23
+- Added: `browse` sub-command to open PO file in the browser.
+
 ## 1.0.2 - 2026-07-23
 - Fixed: `--lang` (and other flags) were silently ignored when passed after the positional file argument.
 

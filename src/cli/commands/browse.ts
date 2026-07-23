@@ -5,7 +5,7 @@ import { GlotRuntimeError, GlotValidationError } from "../../core/errors.ts";
 import { handleError } from "../exit.ts";
 import { createEditorServer } from "../server/httpServer.ts";
 
-export function runServeCommand(
+export function runBrowseCommand(
   config: GlotConfig,
   input: string,
   lang: string,

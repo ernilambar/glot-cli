@@ -1,10 +1,10 @@
 import yargs from "yargs";
 import { VERSION } from "../core/config.ts";
 import type { GlotConfig } from "../core/config.ts";
+import { runBrowseCommand } from "./commands/browse.ts";
 import { runCoreListCommand, runCorePullCommand } from "./commands/core.ts";
 import { runGlossaryListCommand, runGlossaryPullCommand } from "./commands/glossary.ts";
 import { runReviewCommand } from "./commands/review.ts";
-import { runServeCommand } from "./commands/serve.ts";
 import { runStatusCommand } from "./commands/status.ts";
 import { runTranslateCommand } from "./commands/translate.ts";
 import { loadConfigFromEnv } from "./env.ts";
@@ -25,7 +25,7 @@ COMMANDS
   status <file> [--lang <code>]
       Show translation progress for a .po file.
 
-  serve <file> [--lang <code>] [--port <n>] [--no-open]
+  browse <file> [--lang <code>] [--port <n>] [--no-open]
       Open a browser-based editor for a .po file.
 
   glossary list
@@ -117,7 +117,7 @@ export async function runCli(argv: string[], config: GlotConfig = loadConfigFrom
       },
     )
     .command(
-      "serve <file>",
+      "browse <file>",
       "Open a browser-based editor for a .po file.",
       (y) =>
         y
@@ -131,7 +131,7 @@ export async function runCli(argv: string[], config: GlotConfig = loadConfigFrom
           .option("open", { type: "boolean", default: true, describe: "Open the browser automatically" })
           .option("debug", { type: "boolean", default: false, describe: "Show raw technical detail alongside error messages" }),
       (args) => {
-        runServeCommand(
+        runBrowseCommand(
           config,
           args.file as string,
           args.lang as string,

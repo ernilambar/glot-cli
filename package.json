@@ -1,12 +1,24 @@
 {
   "name": "glot-cli",
-  "version": "1.0.2",
+  "version": "1.0.3",
+  "description": "Translate WordPress .po files using any OpenAI-compatible backend.",
+  "homepage": "https://github.com/ernilambar/glot-cli#readme",
+  "bugs": {
+    "url": "https://github.com/ernilambar/glot-cli/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ernilambar/glot-cli.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Nilambar Sharma",
+    "email": "nilambar@outlook.com",
+    "url": "https://github.com/ernilambar"
+  },
   "type": "module",
   "bin": {
     "glot": "./dist/glot"
-  },
-  "engines": {
-    "node": ">=22.18"
   },
   "scripts": {
     "build": "bun build --compile --minify ./src/index.ts --outfile dist/glot",
@@ -25,5 +37,8 @@
     "@types/node": "^22.18.0",
     "@types/yargs": "^17.0.33",
     "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }

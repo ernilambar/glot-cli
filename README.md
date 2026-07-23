@@ -151,7 +151,7 @@ node src/index.ts glossary pull ne_NP
 node src/index.ts glossary list
 node src/index.ts core pull ne_NP
 node src/index.ts core list
-node src/index.ts serve path/to/file.po --no-open  # starts a server; Ctrl+C to stop
+node src/index.ts browse path/to/file.po --no-open  # starts a server; Ctrl+C to stop
 ```
 
 ## Release
