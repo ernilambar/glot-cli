@@ -1,6 +1,6 @@
 import { VERSION } from "../../core/config.ts";
 import type { EditorRow } from "../../core/operations/serveEditor.ts";
-import { STYLE_CSS, SCRIPT_JS } from "./assets.ts";
+import { FAVICON_BASE64, STYLE_CSS, SCRIPT_JS } from "./assets.ts";
 
 export function escapeHtml(s: string): string {
   return s
@@ -161,6 +161,7 @@ export function renderPage(rows: EditorRow[], opts: RenderPageOptions): string {
 <head>
 <meta charset="UTF-8">
 <title>${escapeHtml(opts.filename)} - Glot Editor</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,${FAVICON_BASE64}">
 <style>${STYLE_CSS}</style>
 </head>
 <body>
