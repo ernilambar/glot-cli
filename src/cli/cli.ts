@@ -5,6 +5,7 @@ import { runBrowseCommand } from "./commands/browse.ts";
 import { runCoreListCommand, runCorePullCommand } from "./commands/core.ts";
 import { runGlossaryListCommand, runGlossaryPullCommand } from "./commands/glossary.ts";
 import { runReviewCommand } from "./commands/review.ts";
+import { runServeCommand } from "./commands/serve.ts";
 import { runStatusCommand } from "./commands/status.ts";
 import { runTranslateCommand } from "./commands/translate.ts";
 import { loadConfigFromEnv } from "./env.ts";
@@ -27,6 +28,9 @@ COMMANDS
 
   browse <file> [--lang <code>] [--port <n>] [--no-open]
       Open a browser-based editor for a .po file.
+
+  serve [--port <n>]
+      Start a local read-only REST API (127.0.0.1 only).
 
   glossary list
   glossary pull [<locale>]
@@ -139,6 +143,17 @@ export async function runCli(argv: string[], config: GlotConfig = loadConfigFrom
           args.open as boolean,
           args.debug as boolean,
         );
+      },
+    )
+    .command(
+      "serve",
+      "Start a local read-only REST API.",
+      (y) =>
+        y
+          .option("port", { type: "number", default: 4000, describe: "Port to serve on" })
+          .option("debug", { type: "boolean", default: false, describe: "Show raw technical detail alongside error messages" }),
+      (args) => {
+        runServeCommand(config, args.port as number, args.debug as boolean);
       },
     )
     .command(
