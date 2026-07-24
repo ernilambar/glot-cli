@@ -19,3 +19,13 @@ export class GlotRuntimeError extends Error {
     this.detail = detail;
   }
 }
+
+// Resource genuinely absent for a valid request — e.g. a `mode:"cache"`
+// translate miss. Distinct from GlotValidationError (bad input): only the
+// API layer maps this, to 404; the CLI has no path that throws it.
+export class GlotNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GlotNotFoundError";
+  }
+}

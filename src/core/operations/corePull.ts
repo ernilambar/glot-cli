@@ -66,6 +66,26 @@ export interface CorePullResult {
 
 const PROJECT_LABELS = ["wp/dev", "wp/dev/admin", "wp/dev/admin/network"];
 
+// Singular entries store their plain msgstr; plural entries store an ordered
+// array of msgstr_plural forms, keyed by the same coreCacheKey. isTranslated
+// already guarantees msgStrPlural is fully populated for a plural entry.
+export function indexTranslatableEntries(pf: PoFile): Record<string, string | string[]> {
+  const index: Record<string, string | string[]> = {};
+  for (const e of pf.translatableEntries()) {
+    if (!isTranslated(e)) {
+      continue;
+    }
+    index[coreCacheKey(e)] =
+      e.msgIdPlural !== ""
+        ? Object.keys(e.msgStrPlural)
+            .map(Number)
+            .sort((a, b) => a - b)
+            .map((k) => e.msgStrPlural[k]!)
+        : e.msgStr;
+  }
+  return index;
+}
+
 export async function runCorePull(
   config: GlotConfig,
   locale: string,
@@ -115,7 +135,7 @@ export async function runCorePull(
 
   const poTexts = [firstText, ...fetched];
 
-  const index: Record<string, string> = {};
+  const index: Record<string, string | string[]> = {};
   poTexts.forEach((text, i) => {
     const label = PROJECT_LABELS[i]!;
     if (text === "") {
@@ -129,15 +149,9 @@ export async function runCorePull(
       onEvent?.({ type: "projectParseError", label, error: err instanceof Error ? err.message : String(err) });
       return;
     }
-    let count = 0;
-    for (const e of pf.translatableEntries()) {
-      if (!isTranslated(e)) {
-        continue;
-      }
-      index[coreCacheKey(e)] = e.msgStr;
-      count++;
-    }
-    onEvent?.({ type: "projectFetched", label, count });
+    const entryIndex = indexTranslatableEntries(pf);
+    Object.assign(index, entryIndex);
+    onEvent?.({ type: "projectFetched", label, count: Object.keys(entryIndex).length });
   });
 
   mkdirSync(config.coreDir, { recursive: true });

@@ -94,6 +94,12 @@ test("findCoreMatches: empty when nothing matches", () => {
   assert.deepEqual(findCoreMatches({ Hello: "नमस्ते" }, "World"), []);
 });
 
+test("findCoreMatches: skips plural (array) values instead of stringifying them", () => {
+  const core = { Hello: "नमस्ते", "%d item": ["%d वस्तु", "%d वस्तुहरू"] };
+  assert.deepEqual(findCoreMatches(core, "%d item"), []);
+  assert.deepEqual(findCoreMatches(core, "Hello"), [{ value: "नमस्ते", ctxt: "" }]);
+});
+
 test("translateSingle: always calls AI, even when the core cache has a match", async (t) => {
   const original = deps.callAI;
   t.after(() => {

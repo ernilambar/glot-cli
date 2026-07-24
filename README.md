@@ -109,6 +109,53 @@ Opens a browser-based editor for viewing and editing entries. Editing/saving wor
 --debug   Show raw technical detail alongside AI error messages
 ```
 
+### Serve a local read-only REST API
+
+```bash
+glot serve --port 49701
+```
+
+Starts a local, read-only REST API exposing glossary lookup, the core translation cache, and AI translation — for other local tools (e.g. a WordPress plugin) to call into instead of reimplementing them. Binds to `127.0.0.1` only.
+
+On first run, a bearer token is generated at `$GLOT_DATA_DIR/serve.token` (default: `~/.config/glot-cli/serve.token`). Every request requires it:
+
+```bash
+TOKEN=$(cat ~/.config/glot-cli/serve.token)
+
+curl http://127.0.0.1:49701/api/v1/ping \
+  -H "Authorization: Bearer $TOKEN"
+
+curl http://127.0.0.1:49701/api/v1/glossary/ne_NP \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -X POST http://127.0.0.1:49701/api/v1/translate \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"msgid":"Settings saved","lang":"ne_NP","mode":"cache-then-ai"}'
+```
+
+Options:
+
+```
+--port   Port to serve on (default: 49701)
+--debug  Show raw technical detail alongside error messages
+```
+
+Endpoints (all under `/api/v1`):
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/ping` | Connection test |
+| `GET` | `/languages` | Full locale list (code → display name) |
+| `GET` | `/glossary` | List pulled glossaries |
+| `GET` | `/glossary/:lang` | Glossary terms for a locale |
+| `GET` | `/glossary/:lang/match?text=...` | Glossary terms found in the given text |
+| `GET` | `/core` | List pulled core translation caches |
+| `GET` | `/core/:lang?msgid=...` | Approved WP core translations for a `msgid` |
+| `POST` | `/translate` | Cache-then-AI translate (singular or plural); `mode`: `cache`, `cache-then-ai` (default), or `ai` |
+
+Errors use RFC 7807 (`application/problem+json`): `{ "title": "...", "status": 400, "detail": "..." }`.
+
 ### Check translation status
 
 ```bash
@@ -174,6 +221,7 @@ node src/index.ts glossary list
 node src/index.ts core pull ne_NP
 node src/index.ts core list
 node src/index.ts browse path/to/file.po --no-open  # starts a server; Ctrl+C to stop
+node src/index.ts serve  # starts the REST API; Ctrl+C to stop
 ```
 
 ## Release

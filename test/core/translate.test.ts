@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -117,6 +117,123 @@ test("runTranslate: core cache skips AI", async (t) => {
   assert.equal(aiCalled, false);
   assert.equal(result.outcome, "translated");
   assert.ok(events.some((e) => (e as { type: string; count?: number }).type === "coreMatches" && (e as { count: number }).count === 2));
+});
+
+const pluralPO = `msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+
+msgid "%d item"
+msgid_plural "%d items"
+msgstr[0] ""
+msgstr[1] ""
+`;
+
+test("runTranslate: plural core-cache hit fills msgstr_plural by index", async (t) => {
+  const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({ "%d item": ["%d वस्तु", "%d वस्तुहरू"] });
+  let aiCalled = false;
+  deps.callAI = async () => {
+    aiCalled = true;
+    return { content: "", usage: null };
+  };
+
+  const p = writePo(pluralPO);
+  const result = await runTranslate(baseConfig(), p, "ne_NP", 0);
+
+  assert.equal(aiCalled, false);
+  assert.equal(result.outcome, "translated");
+
+  const pf = PoFile.parseFile(p);
+  const [entry] = pf.translatableEntries();
+  assert.equal(entry!.msgStrPlural[0], "%d वस्तु");
+  assert.equal(entry!.msgStrPlural[1], "%d वस्तुहरू");
+});
+
+test("runTranslate: shape-mismatched core value (array for a singular entry) falls through to AI", async (t) => {
+  const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({ Hello: ["a", "b"], World: "संसार" });
+  deps.callAI = async () => ({ content: `{"1": "नमस्ते"}`, usage: null });
+
+  const p = writePo(untranslatedPO);
+  const result = await runTranslate(baseConfig(), p, "ne_NP", 0);
+  assert.equal(result.outcome, "translated");
+
+  const pf = PoFile.parseFile(p);
+  const found: Record<string, string> = {};
+  for (const e of pf.translatableEntries()) {
+    found[e.msgId] = e.msgStr;
+  }
+  assert.equal(found["Hello"], "नमस्ते"); // came from AI, not the mismatched array
+  assert.equal(found["World"], "संसार"); // came from the core cache
+});
+
+test("runTranslate: plural cache miss is reported failed, never sent to AI", async (t) => {
+  const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({});
+  let aiCalled = false;
+  deps.callAI = async () => {
+    aiCalled = true;
+    return { content: "", usage: null };
+  };
+
+  const p = writePo(pluralPO);
+  const result = await runTranslate(baseConfig(), p, "ne_NP", 0);
+
+  assert.equal(aiCalled, false);
+  assert.equal(result.outcome, "translated");
+  if (result.outcome !== "translated") throw new Error("unreachable");
+  assert.equal(result.translated, 0);
+  assert.equal(result.failed.length, 1);
+  assert.equal(result.failed[0]!.msgId, "%d item");
+  assert.match(result.failed[0]!.error, /plural/i);
+
+  const pf = PoFile.parseFile(p);
+  const [entry] = pf.translatableEntries();
+  assert.equal(entry!.msgStrPlural[0], "");
+  assert.equal(entry!.msgStrPlural[1], "");
+  assert.equal(existsSync(`${p}.bak`), false); // nothing was translated, so no backup was needed
+});
+
+test("runTranslate: mixed batch — singular entry goes to AI, plural cache-miss is skipped and reported failed", async (t) => {
+  const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({});
+  let sentPrompt = "";
+  deps.callAI = async (_config, prompt) => {
+    sentPrompt = prompt;
+    return { content: `{"1": "नमस्ते"}`, usage: null };
+  };
+
+  const p = writePo(`msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\\n"
+
+msgid "Hello"
+msgstr ""
+
+msgid "%d item"
+msgid_plural "%d items"
+msgstr[0] ""
+msgstr[1] ""
+`);
+  const result = await runTranslate(baseConfig(), p, "ne_NP", 0);
+
+  assert.equal(result.outcome, "translated");
+  if (result.outcome !== "translated") throw new Error("unreachable");
+  assert.equal(result.translated, 1);
+  assert.equal(result.failed.length, 1);
+  assert.equal(result.failed[0]!.msgId, "%d item");
+  assert.doesNotMatch(sentPrompt, /%d item/); // the plural string was never sent to AI
+
+  const pf = PoFile.parseFile(p);
+  const entries = pf.translatableEntries();
+  assert.equal(entries[0]!.msgStr, "नमस्ते");
+  assert.equal(entries[1]!.msgStrPlural[0], "");
 });
 
 test("runTranslate: negative limit throws GlotValidationError", async () => {

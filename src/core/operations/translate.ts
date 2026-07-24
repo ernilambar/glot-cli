@@ -95,7 +95,16 @@ export async function runTranslate(
     const remaining: Entry[] = [];
     for (const e of missingEntries) {
       const v = core[coreCacheKey(e)];
-      if (v) {
+      const isPlural = e.msgIdPlural !== "";
+      if (Array.isArray(v) && isPlural) {
+        Object.keys(e.msgStrPlural)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .forEach((k, i) => {
+            e.msgStrPlural[k] = v[i] ?? "";
+          });
+        coreHits++;
+      } else if (typeof v === "string" && v !== "" && !isPlural) {
         e.msgStr = v;
         coreHits++;
       } else {
@@ -116,6 +125,16 @@ export async function runTranslate(
     onEvent?.({ type: "customSystemPromptLoaded" });
   }
 
+  // buildBatchPrompt/parseBatchResponse below are singular-only — they write
+  // to e.msgStr, which isTranslated ignores for a plural entry (it checks
+  // msgStrPlural instead). Plural entries must not reach that path.
+  const pluralMissing = missingEntries.filter((e) => e.msgIdPlural !== "");
+  missingEntries = missingEntries.filter((e) => e.msgIdPlural === "");
+  const failed: FailedEntry[] = pluralMissing.map((e) => ({
+    msgId: e.msgId,
+    error: "AI translation of plural strings isn't supported via the CLI yet",
+  }));
+
   if (missingEntries.length === 0) {
     try {
       pf.save(input);
@@ -126,7 +145,7 @@ export async function runTranslate(
       outcome: "translated",
       savedPath: input,
       translated: coreHits,
-      failed: [],
+      failed,
       usage: null,
       capped: false,
       remaining: 0,
@@ -160,7 +179,6 @@ export async function runTranslate(
     concurrency: config.concurrency,
   });
 
-  const failed: FailedEntry[] = [];
   const totalUsage: UsageInfo = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
   let usageComplete = true;
   let doneStrings = 0;
@@ -237,7 +255,9 @@ export async function runTranslate(
     throw new GlotRuntimeError(`cannot write file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const translated = batch.length - failed.length + coreHits;
+  // `failed` was seeded with pluralMissing failures before batch processing
+  // started — subtract those back out so this only reflects batch outcomes.
+  const translated = batch.length - (failed.length - pluralMissing.length) + coreHits;
   const usage = usageComplete && totalUsage.totalTokens > 0 ? totalUsage : null;
 
   return {

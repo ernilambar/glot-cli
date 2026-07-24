@@ -45,10 +45,13 @@ export function buildEditorView(pf: PoFile): EditorRow[] {
 // WordPress core's catalogs when the same English string is used under
 // different contexts — this surfaces all of them, ignoring ctxt, so the
 // editor can show every officially-approved candidate for a row.
-export function findCoreMatches(core: Record<string, string>, msgId: string): CoreMatch[] {
+export function findCoreMatches(core: Record<string, string | string[]>, msgId: string): CoreMatch[] {
   const seen = new Set<string>();
   const out: CoreMatch[] = [];
   for (const [key, value] of Object.entries(core)) {
+    if (Array.isArray(value)) {
+      continue;
+    }
     const sep = key.indexOf("\x04");
     const keyMsgId = sep === -1 ? key : key.slice(sep + 1);
     const ctxt = sep === -1 ? "" : key.slice(0, sep);

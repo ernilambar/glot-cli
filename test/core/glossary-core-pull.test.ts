@@ -6,8 +6,9 @@ import { test } from "node:test";
 import type { GlotConfig } from "../../src/core/config.ts";
 import { deps } from "../../src/core/deps.ts";
 import { GlotValidationError } from "../../src/core/errors.ts";
-import { runCoreList, runCorePull } from "../../src/core/operations/corePull.ts";
+import { indexTranslatableEntries, runCoreList, runCorePull } from "../../src/core/operations/corePull.ts";
 import { runGlossaryList, runGlossaryPull } from "../../src/core/operations/glossaryPull.ts";
+import { PoFile } from "../../src/core/po/poFile.ts";
 
 function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
   return {
@@ -98,4 +99,46 @@ test("runCoreList: lists .json files with entry counts", () => {
   if (result.outcome !== "listed") throw new Error("unreachable");
   assert.equal(result.items[0]!.locale, "ne_NP");
   assert.equal(result.items[0]!.entries, 2);
+});
+
+// ---------------------------------------------------------------------------
+// indexTranslatableEntries — the PO-text-to-cache-index step of runCorePull,
+// extracted so plural handling is testable without mocking httpGet.
+// ---------------------------------------------------------------------------
+
+const PLURAL_PO = `msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+
+msgid "Hello"
+msgstr "नमस्ते"
+
+msgid "%d item"
+msgid_plural "%d items"
+msgstr[0] "%d वस्तु"
+msgstr[1] "%d वस्तुहरू"
+
+msgid "Untranslated"
+msgstr ""
+
+#, fuzzy
+msgid "Fuzzy"
+msgstr "अस्पष्ट"
+`;
+
+test("indexTranslatableEntries: singular entry stores plain string", () => {
+  const index = indexTranslatableEntries(PoFile.parse(PLURAL_PO));
+  assert.equal(index["Hello"], "नमस्ते");
+});
+
+test("indexTranslatableEntries: plural entry stores ordered array of msgstr_plural forms", () => {
+  const index = indexTranslatableEntries(PoFile.parse(PLURAL_PO));
+  assert.deepEqual(index["%d item"], ["%d वस्तु", "%d वस्तुहरू"]);
+});
+
+test("indexTranslatableEntries: skips untranslated and fuzzy entries", () => {
+  const index = indexTranslatableEntries(PoFile.parse(PLURAL_PO));
+  assert.equal("Untranslated" in index, false);
+  assert.equal("Fuzzy" in index, false);
 });
