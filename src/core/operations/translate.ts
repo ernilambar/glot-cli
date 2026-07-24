@@ -95,7 +95,16 @@ export async function runTranslate(
     const remaining: Entry[] = [];
     for (const e of missingEntries) {
       const v = core[coreCacheKey(e)];
-      if (v) {
+      const isPlural = e.msgIdPlural !== "";
+      if (Array.isArray(v) && isPlural) {
+        Object.keys(e.msgStrPlural)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .forEach((k, i) => {
+            e.msgStrPlural[k] = v[i] ?? "";
+          });
+        coreHits++;
+      } else if (typeof v === "string" && v !== "" && !isPlural) {
         e.msgStr = v;
         coreHits++;
       } else {

@@ -119,6 +119,58 @@ test("runTranslate: core cache skips AI", async (t) => {
   assert.ok(events.some((e) => (e as { type: string; count?: number }).type === "coreMatches" && (e as { count: number }).count === 2));
 });
 
+const pluralPO = `msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+
+msgid "%d item"
+msgid_plural "%d items"
+msgstr[0] ""
+msgstr[1] ""
+`;
+
+test("runTranslate: plural core-cache hit fills msgstr_plural by index", async (t) => {
+  const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({ "%d item": ["%d वस्तु", "%d वस्तुहरू"] });
+  let aiCalled = false;
+  deps.callAI = async () => {
+    aiCalled = true;
+    return { content: "", usage: null };
+  };
+
+  const p = writePo(pluralPO);
+  const result = await runTranslate(baseConfig(), p, "ne_NP", 0);
+
+  assert.equal(aiCalled, false);
+  assert.equal(result.outcome, "translated");
+
+  const pf = PoFile.parseFile(p);
+  const [entry] = pf.translatableEntries();
+  assert.equal(entry!.msgStrPlural[0], "%d वस्तु");
+  assert.equal(entry!.msgStrPlural[1], "%d वस्तुहरू");
+});
+
+test("runTranslate: shape-mismatched core value (array for a singular entry) falls through to AI", async (t) => {
+  const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({ Hello: ["a", "b"], World: "संसार" });
+  deps.callAI = async () => ({ content: `{"1": "नमस्ते"}`, usage: null });
+
+  const p = writePo(untranslatedPO);
+  const result = await runTranslate(baseConfig(), p, "ne_NP", 0);
+  assert.equal(result.outcome, "translated");
+
+  const pf = PoFile.parseFile(p);
+  const found: Record<string, string> = {};
+  for (const e of pf.translatableEntries()) {
+    found[e.msgId] = e.msgStr;
+  }
+  assert.equal(found["Hello"], "नमस्ते"); // came from AI, not the mismatched array
+  assert.equal(found["World"], "संसार"); // came from the core cache
+});
+
 test("runTranslate: negative limit throws GlotValidationError", async () => {
   const p = writePo(untranslatedPO);
   await assert.rejects(() => runTranslate(baseConfig(), p, "ne_NP", -1), GlotValidationError);

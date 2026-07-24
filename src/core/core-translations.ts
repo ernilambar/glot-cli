@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { GlotConfig } from "./config.ts";
 
-export function loadCoreTranslations(config: GlotConfig, locale: string): Record<string, string> {
+export function loadCoreTranslations(config: GlotConfig, locale: string): Record<string, string | string[]> {
   const path = join(config.coreDir, `${locale}.json`);
   if (!existsSync(path)) {
     return {};
@@ -10,7 +10,7 @@ export function loadCoreTranslations(config: GlotConfig, locale: string): Record
   try {
     const data = JSON.parse(readFileSync(path, "utf8"));
     if (typeof data === "object" && data !== null && !Array.isArray(data)) {
-      return data as Record<string, string>;
+      return data as Record<string, string | string[]>;
     }
     return {};
   } catch {

@@ -42,6 +42,15 @@ test("loadCoreTranslations: invalid JSON returns empty object", () => {
   assert.deepEqual(loadCoreTranslations(baseConfig({ coreDir: dir }), "ne_NP"), {});
 });
 
+test("loadCoreTranslations: plural array values load alongside string values", () => {
+  const dir = mkdtempSync(join(tmpdir(), "glot-core-"));
+  writeFileSync(join(dir, "ne_NP.json"), JSON.stringify({ Hello: "नमस्ते", "%d item": ["%d वस्तु", "%d वस्तुहरू"] }));
+  assert.deepEqual(loadCoreTranslations(baseConfig({ coreDir: dir }), "ne_NP"), {
+    Hello: "नमस्ते",
+    "%d item": ["%d वस्तु", "%d वस्तुहरू"],
+  });
+});
+
 test("loadSystemPrompt: missing file returns empty string", () => {
   const dir = mkdtempSync(join(tmpdir(), "glot-prompts-"));
   assert.equal(loadSystemPrompt(baseConfig({ promptsDir: dir }), "ne_NP"), "");
