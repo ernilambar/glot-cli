@@ -7,7 +7,7 @@ import { ensureServeToken } from "../server/token.ts";
 export function runServeCommand(config: GlotConfig, port: number, debug: boolean): void {
   try {
     const { path, token } = ensureServeToken(config);
-    const server = createApiServer(token);
+    const server = createApiServer(config, token);
 
     server.on("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "EADDRINUSE") {
