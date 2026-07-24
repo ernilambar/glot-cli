@@ -150,7 +150,7 @@ export async function runCli(argv: string[], config: GlotConfig = loadConfigFrom
       "Start a local read-only REST API.",
       (y) =>
         y
-          .option("port", { type: "number", default: 4000, describe: "Port to serve on" })
+          .option("port", { type: "number", default: 49701, describe: "Port to serve on" })
           .option("debug", { type: "boolean", default: false, describe: "Show raw technical detail alongside error messages" }),
       (args) => {
         runServeCommand(config, args.port as number, args.debug as boolean);

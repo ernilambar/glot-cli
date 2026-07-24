@@ -55,6 +55,51 @@ export function buildBatchPrompt(items: BatchItem[], targetLang: string, systemP
   return `Translate each numbered English WordPress UI string into ${targetLang}. ${rules}${FORMAT_INSTRUCTION}${glossaryBlock}\n\n${numbered}`;
 }
 
+// Plural counterpart to buildBatchPrompt: one string, N grammatical plural
+// forms for the target language (not English's plural rules), since the
+// stateless API has no .po header to read nplurals from — the caller
+// supplies it.
+export function buildPluralPrompt(
+  msgId: string,
+  msgIdPlural: string,
+  nplurals: number,
+  matches: TermMatch[],
+  targetLang: string,
+  systemPrompt: string,
+): string {
+  const formatInstruction = `Return ONLY a JSON array of exactly ${nplurals} translated forms: ["...", ...]. No explanation, no extra text.`;
+  const forms = `Singular English form: ${msgId}\nPlural English form: ${msgIdPlural}`;
+
+  if (systemPrompt !== "") {
+    let glossaryBlock = "";
+    if (matches.length > 0) {
+      const lines = matches.map((m) => `${m.term} = ${m.info.translation}`);
+      glossaryBlock = `Approved terms:\n${lines.join("\n")}\n\n`;
+    }
+    return `${glossaryBlock}Translate this string into exactly ${nplurals} grammatical plural forms:\n${forms}\n\n${formatInstruction}`;
+  }
+
+  let glossaryBlock = "";
+  if (matches.length > 0) {
+    const lines = matches.map((m) => {
+      let line = `- ${JSON.stringify(m.term)} -> ${JSON.stringify(m.info.translation)}`;
+      if (m.info.note !== "") {
+        line += ` (${m.info.note})`;
+      }
+      return line;
+    });
+    glossaryBlock = `\n\nUse these exact terms where they apply:\n${lines.join("\n")}`;
+  }
+
+  const rules =
+    "Follow these rules strictly:\n" +
+    "1. Produce exactly the requested number of plural forms, using the target language's own plural rules (not English's).\n" +
+    "2. Placeholders: keep exactly as-is — printf variables (%s, %d, %1$s), template variables ({{name}}, {{{{email}}}}), HTML tags, HTML entities (&amp;, &lt;, &gt;, &quot;).\n" +
+    "3. Glossary: if approved terms are listed, copy them exactly — no synonyms, no alternatives.\n";
+
+  return `Translate this English WordPress UI string into ${targetLang}. ${rules}${formatInstruction}${glossaryBlock}\n\n${forms}`;
+}
+
 export function buildReviewPrompt(msgids: string[]): string {
   const numbered = msgids.map((m, i) => `${i + 1}. ${m}`).join("\n");
 
@@ -141,6 +186,24 @@ export function parseBatchResponse(response: string, count: number): string[] {
     if (idx >= 0 && idx < count) {
       results[idx] = m[2]!.trim();
     }
+  }
+  return results;
+}
+
+export function parsePluralResponse(response: string, nplurals: number): string[] {
+  const results: string[] = new Array(nplurals).fill("");
+
+  let data: unknown;
+  try {
+    data = JSON.parse(stripCodeFences(response));
+  } catch {
+    return results;
+  }
+  if (!Array.isArray(data)) {
+    return results;
+  }
+  for (let i = 0; i < nplurals; i++) {
+    results[i] = stringifyValue(data[i]).trim();
   }
   return results;
 }
