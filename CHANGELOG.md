@@ -1,6 +1,7 @@
 # Changelog
 
 ## X.X.X - YYYY-MM-DD
+- Added: `serve` sub-command to REST API
 - Changed: hide redundant single-match suggestions
 
 ## 1.0.3 - 2026-07-23
