@@ -1,6 +1,6 @@
 # Changelog
 
-## X.X.X - YYYY-MM-DD
+## 1.0.4 - 2026-07-25
 - Added: `serve` sub-command to REST API
 - Fixed: `glot translate` now AI-translates plural strings that miss the core cache
 - Changed: hide redundant single-match suggestions
