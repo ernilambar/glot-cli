@@ -109,12 +109,11 @@ export function buildReviewPrompt(msgids: string[]): string {
     '1. Hardcoded numeric literal that should use %d — e.g., "Showing 5 results", "1 item found", "3 comments". Do NOT flag strings without a digit or without a runtime-variable count (e.g., "No results found", "Delete items", "Add new", "Recent posts" are fine).\n' +
     "2. Hardcoded version number, date, or date format that should use %s\n" +
     "3. Hardcoded file name or file path that should use %s; or a URL/email embedded within other text — do NOT flag a string whose entire content is a URL or email\n" +
-    "4. String that is clearly not user-facing (raw error codes, debug output, code snippets)\n" +
-    "5. String starts with a lowercase letter and is not a continuation, code value, or proper noun — likely a concatenated fragment\n" +
-    "6. HTML tags inside the string — HTML markup should be outside the translatable string or needs a /* translators: */ comment explaining the tags\n" +
-    "7. Leading or trailing whitespace — padding inside translatable strings causes translation mismatches\n" +
-    "8. Ambiguous string that needs _x() with context — e.g., a single word that could be a verb or noun, or a question used as a UI label\n" +
-    '9. Hardcoded ordinal suffix (e.g., "1st", "2nd", "3rd") — ordinals are not universal and should use %s\n\n' +
+    "4. String starts with a lowercase letter and is not a continuation, code value, or proper noun — likely a concatenated fragment\n" +
+    "5. HTML tags inside the string — HTML markup should be outside the translatable string or needs a /* translators: */ comment explaining the tags\n" +
+    "6. Leading or trailing whitespace — padding inside translatable strings causes translation mismatches\n" +
+    "7. Ambiguous string that needs _x() with context — e.g., a single word that could be a verb or noun, or a question used as a UI label\n" +
+    '8. Hardcoded ordinal suffix (e.g., "1st", "2nd", "3rd") — ordinals are not universal and should use %s\n\n' +
     "Return ONLY a JSON object mapping string numbers (as strings) to a short issue description. " +
     "Include only strings with issues. Return {} if all strings are fine. No explanation outside the JSON.\n\n" +
     numbered
