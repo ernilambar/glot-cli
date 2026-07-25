@@ -6,10 +6,10 @@ import { deps } from "../deps.ts";
 import { GlotRuntimeError, GlotValidationError } from "../errors.ts";
 import { buildGlossaryIndex, loadGlossary, matchingGlossaryTerms } from "../glossary.ts";
 import { validateLang } from "../languages.ts";
-import { coreCacheKey, isTranslated } from "../po/entry.ts";
+import { coreCacheKey, detectPluralCount, isTranslated } from "../po/entry.ts";
 import { PoFile } from "../po/poFile.ts";
 import type { Entry } from "../po/types.ts";
-import { buildBatchPrompt, parseBatchResponse } from "../prompts.ts";
+import { buildBatchPrompt, buildPluralPrompt, parseBatchResponse, parsePluralResponse } from "../prompts.ts";
 import { loadSystemPrompt } from "../core-translations.ts";
 
 export interface FailedEntry {
@@ -125,15 +125,7 @@ export async function runTranslate(
     onEvent?.({ type: "customSystemPromptLoaded" });
   }
 
-  // buildBatchPrompt/parseBatchResponse below are singular-only — they write
-  // to e.msgStr, which isTranslated ignores for a plural entry (it checks
-  // msgStrPlural instead). Plural entries must not reach that path.
-  const pluralMissing = missingEntries.filter((e) => e.msgIdPlural !== "");
-  missingEntries = missingEntries.filter((e) => e.msgIdPlural === "");
-  const failed: FailedEntry[] = pluralMissing.map((e) => ({
-    msgId: e.msgId,
-    error: "AI translation of plural strings isn't supported via the CLI yet",
-  }));
+  const failed: FailedEntry[] = [];
 
   if (missingEntries.length === 0) {
     try {
@@ -169,12 +161,23 @@ export async function runTranslate(
   const capped = missingEntries.length > effectiveLimit;
   const batch = capped ? missingEntries.slice(0, effectiveLimit) : missingEntries;
 
-  const chunks = chunk(batch, config.batchSize);
+  const singularBatch = batch.filter((e) => e.msgIdPlural === "");
+  const pluralBatch = batch.filter((e) => e.msgIdPlural !== "");
+  const nplurals = detectPluralCount(pf.entries);
+
+  // Plural entries need one AI call each (buildPluralPrompt/parsePluralResponse
+  // asks for a variable number of grammatical forms), unlike singular entries,
+  // which are batched together via buildBatchPrompt/parseBatchResponse.
+  type Unit = { entries: Entry[]; isPlural: boolean };
+  const units: Unit[] = [
+    ...chunk(singularBatch, config.batchSize).map((entries) => ({ entries, isPlural: false })),
+    ...pluralBatch.map((e) => ({ entries: [e], isPlural: true })),
+  ];
 
   onEvent?.({
     type: "translating",
     totalStrings: batch.length,
-    totalBatches: chunks.length,
+    totalBatches: units.length,
     batchSize: config.batchSize,
     concurrency: config.concurrency,
   });
@@ -182,11 +185,68 @@ export async function runTranslate(
   const totalUsage: UsageInfo = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
   let usageComplete = true;
   let doneStrings = 0;
+  let translatedCount = 0;
+
+  const recordUsage = (usage: UsageInfo | null): void => {
+    if (usage === null) {
+      usageComplete = false;
+    } else {
+      totalUsage.promptTokens += usage.promptTokens;
+      totalUsage.completionTokens += usage.completionTokens;
+      totalUsage.totalTokens += usage.totalTokens;
+    }
+  };
 
   const limiter = pLimit(config.concurrency);
   await Promise.all(
-    chunks.map((c, idx) =>
+    units.map((u, idx) =>
       limiter(async () => {
+        const c = u.entries;
+
+        if (u.isPlural) {
+          const e = c[0]!;
+          const matches = matchingGlossaryTerms(e.msgId, glossary, glossaryIdx);
+          const prompt = buildPluralPrompt(e.msgId, e.msgIdPlural, nplurals, matches, lang, systemPrompt);
+
+          let translations: string[];
+          try {
+            const result = await deps.callAI(config, prompt, systemPrompt, 0.1);
+            translations = parsePluralResponse(result.content, nplurals);
+            recordUsage(result.usage);
+          } catch (err) {
+            usageComplete = false;
+            doneStrings += 1;
+            const message = err instanceof Error ? err.message : String(err);
+            failed.push({ msgId: e.msgId, error: message });
+            onEvent?.({ type: "batchFailed", index: idx, totalBatches: units.length, error: message, doneStrings, totalStrings: batch.length });
+            return;
+          }
+
+          doneStrings += 1;
+          if (translations.some((t) => t === "")) {
+            failed.push({ msgId: e.msgId, error: "missing from response" });
+            onEvent?.({
+              type: "batchFailed",
+              index: idx,
+              totalBatches: units.length,
+              error: "missing from response",
+              doneStrings,
+              totalStrings: batch.length,
+            });
+            return;
+          }
+
+          Object.keys(e.msgStrPlural)
+            .map(Number)
+            .sort((a, b) => a - b)
+            .forEach((k, i) => {
+              e.msgStrPlural[k] = translations[i] ?? "";
+            });
+          translatedCount += 1;
+          onEvent?.({ type: "batchOk", index: idx, totalBatches: units.length, ok: 1, chunkSize: 1, doneStrings, totalStrings: batch.length });
+          return;
+        }
+
         const items = c.map((e) => ({
           msgId: e.msgId,
           matches: matchingGlossaryTerms(e.msgId, glossary, glossaryIdx),
@@ -194,11 +254,10 @@ export async function runTranslate(
         const prompt = buildBatchPrompt(items, lang, systemPrompt);
 
         let translations: string[];
-        let usage: UsageInfo | null;
         try {
           const result = await deps.callAI(config, prompt, systemPrompt, 0.1);
           translations = parseBatchResponse(result.content, c.length);
-          usage = result.usage;
+          recordUsage(result.usage);
         } catch (err) {
           usageComplete = false;
           doneStrings += c.length;
@@ -209,20 +268,12 @@ export async function runTranslate(
           onEvent?.({
             type: "batchFailed",
             index: idx,
-            totalBatches: chunks.length,
+            totalBatches: units.length,
             error: message,
             doneStrings,
             totalStrings: batch.length,
           });
           return;
-        }
-
-        if (usage === null) {
-          usageComplete = false;
-        } else {
-          totalUsage.promptTokens += usage.promptTokens;
-          totalUsage.completionTokens += usage.completionTokens;
-          totalUsage.totalTokens += usage.totalTokens;
         }
 
         let ok = 0;
@@ -235,11 +286,12 @@ export async function runTranslate(
             failed.push({ msgId: e.msgId, error: "missing from response" });
           }
         });
+        translatedCount += ok;
         doneStrings += c.length;
         onEvent?.({
           type: "batchOk",
           index: idx,
-          totalBatches: chunks.length,
+          totalBatches: units.length,
           ok,
           chunkSize: c.length,
           doneStrings,
@@ -255,15 +307,12 @@ export async function runTranslate(
     throw new GlotRuntimeError(`cannot write file: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // `failed` was seeded with pluralMissing failures before batch processing
-  // started — subtract those back out so this only reflects batch outcomes.
-  const translated = batch.length - (failed.length - pluralMissing.length) + coreHits;
   const usage = usageComplete && totalUsage.totalTokens > 0 ? totalUsage : null;
 
   return {
     outcome: "translated",
     savedPath: input,
-    translated,
+    translated: translatedCount + coreHits,
     failed,
     usage,
     capped,
