@@ -1,0 +1,10 @@
+{
+  "easyReplaceInFiles": [
+    {
+      "files": "src/core/config.ts",
+      "from": "export const VERSION = \"(.+)\";",
+      "type": "regex",
+      "to": "export const VERSION = \"$$package__version$$\";"
+    }
+  ]
+}
