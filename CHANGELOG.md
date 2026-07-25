@@ -2,6 +2,7 @@
 
 ## X.X.X - YYYY-MM-DD
 - Added: `serve` sub-command to REST API
+- Fixed: `glot translate` now AI-translates plural strings that miss the core cache
 - Changed: hide redundant single-match suggestions
 
 ## 1.0.3 - 2026-07-23
