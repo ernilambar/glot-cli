@@ -156,6 +156,19 @@ Endpoints (all under `/api/v1`):
 
 Errors use RFC 7807 (`application/problem+json`): `{ "title": "...", "status": 400, "detail": "..." }`.
 
+#### Run in the background with pm2
+
+Keep the API running with [pm2](https://pm2.keymetrics.io/). Run from a shell where the `GLOT_*` variables are set (flags after `--` go to glot):
+
+```bash
+pm2 start glot --name glot-serve -- serve
+
+pm2 logs glot-serve      # view logs
+pm2 restart glot-serve   # restart
+pm2 delete glot-serve    # remove
+pm2 save                 # persist across reboots
+```
+
 ### Check translation status
 
 ```bash
