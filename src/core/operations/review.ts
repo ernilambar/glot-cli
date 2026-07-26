@@ -25,6 +25,7 @@ export type ReviewResult =
   | { outcome: "reviewed"; report: ReviewItem[]; total: number; usage: UsageInfo | null };
 
 const PLACEHOLDER_RE = /%(\d+\$)?[sd]/;
+const URL_OR_EMAIL_ONLY_RE = /^(https?:\/\/\S+|mailto:\S+|[^\s@]+@[^\s@]+\.[^\s@]+)$/i;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -105,6 +106,9 @@ export async function runReview(
           for (const [k, v] of Object.entries(issues)) {
             const localIdx = Number(k) - 1;
             if (Number.isInteger(localIdx) && localIdx >= 0 && localIdx < c.length) {
+              if (URL_OR_EMAIL_ONLY_RE.test(c[localIdx]!.msgId.trim())) {
+                continue;
+              }
               aiIssues[offset + localIdx] = v;
             }
           }
