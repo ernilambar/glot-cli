@@ -67,7 +67,7 @@ export async function runApiTranslate(config: GlotConfig, input: ApiTranslateInp
   const glossary = loadGlossary(config.glossaryDir, input.lang);
   const glossaryIdx = buildGlossaryIndex(glossary);
   const systemPrompt = loadSystemPrompt(config, input.lang);
-  const matches = matchingGlossaryTerms(input.msgId, glossary, glossaryIdx);
+  const matches = matchingGlossaryTerms(input.msgId, glossary, glossaryIdx, input.msgCtxt);
 
   if (isPlural) {
     const prompt = buildPluralPrompt(

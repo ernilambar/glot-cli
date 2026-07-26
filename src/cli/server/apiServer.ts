@@ -132,7 +132,12 @@ export function createApiServer(config: GlotConfig, token: string): Server {
       if (req.method === "GET" && route.length === 2 && route[0] === "glossary") {
         const lang = route[1]!;
         validateLang(lang, deps.loadValidLanguages());
-        sendJson(res, 200, loadGlossary(config.glossaryDir, lang));
+        // loadGlossary now keeps every pos variant per term; this read endpoint
+        // preserves its historical one-entry-per-term shape by exposing the
+        // first variant. Context-aware selection happens at translate time.
+        const glossary = loadGlossary(config.glossaryDir, lang);
+        const flat = Object.fromEntries(Object.entries(glossary).map(([term, variants]) => [term, variants[0]!]));
+        sendJson(res, 200, flat);
         return;
       }
 
