@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.6 - 2026-07-26
+- Added: context (`msgctxt`) support in glossary terms
+- Added: `GET /info` endpoint exposing basic info
+- Fixed: review no longer flags URL-only and email-only strings as issues
+
 ## 1.0.5 - 2026-07-26
 - Fixed: `msgctxt` now reaches AI translation prompts, not just the cache lookup
 - Fixed: PO translator comments (`#.`) now reach AI translation prompts

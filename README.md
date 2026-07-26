@@ -146,6 +146,7 @@ Endpoints (all under `/api/v1`):
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/ping` | Connection test |
+| `GET` | `/info` | Server version and other basic information |
 | `GET` | `/languages` | Full locale list (code → display name) |
 | `GET` | `/glossary` | List pulled glossaries |
 | `GET` | `/glossary/:lang` | Glossary terms for a locale |

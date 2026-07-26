@@ -53,6 +53,53 @@ test("GET /api/v1/ping: valid token returns 200 ok", async () => {
   });
 });
 
+test("GET /api/v1/info: returns version, model, lang, endpoint host, and limits", async () => {
+  const config = baseConfig({
+    modelId: "some-model",
+    lang: "ne_NP",
+    endpointUrl: "https://api.example.com/v1/messages?beta=1",
+    maxStrings: 50,
+    batchSize: 5,
+    concurrency: 2,
+    requestTimeout: 90,
+  });
+  await withServer(config, async (base) => {
+    const res = await fetch(`${base}/api/v1/info`, { headers: AUTH });
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.equal(body.model, "some-model");
+    assert.equal(body.lang, "ne_NP");
+    // Host only — never the full URL with path/query.
+    assert.equal(body.endpointHost, "api.example.com");
+    assert.equal(typeof body.version, "string");
+    assert.deepEqual(body.limits, {
+      maxStrings: 50,
+      batchSize: 5,
+      concurrency: 2,
+      requestTimeout: 90,
+    });
+    // Secrets and filesystem paths must never leak.
+    assert.ok(!("apiKey" in body));
+    assert.ok(!("dataDir" in body));
+  });
+});
+
+test("GET /api/v1/info: empty endpoint URL yields null host", async () => {
+  await withServer(baseConfig({ endpointUrl: "" }), async (base) => {
+    const res = await fetch(`${base}/api/v1/info`, { headers: AUTH });
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.equal(body.endpointHost, null);
+  });
+});
+
+test("GET /api/v1/info: missing token returns 401", async () => {
+  await withServer(baseConfig(), async (base) => {
+    const res = await fetch(`${base}/api/v1/info`);
+    assert.equal(res.status, 401);
+  });
+});
+
 test("GET /api/v1/ping: missing Authorization header returns 401 problem+json", async () => {
   await withServer(baseConfig(), async (base) => {
     const res = await fetch(`${base}/api/v1/ping`);
