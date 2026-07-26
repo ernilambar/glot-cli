@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.5 - 2026-07-26
+- Fixed: `msgctxt` now reaches AI translation prompts, not just the cache lookup
+- Fixed: PO translator comments (`#.`) now reach AI translation prompts
+- Added: optional `comment` field on `POST /translate`
+
 ## 1.0.4 - 2026-07-25
 - Added: `serve` sub-command to REST API
 - Fixed: `glot translate` now AI-translates plural strings that miss the core cache

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildBatchPrompt,
+  buildPluralPrompt,
   buildReviewPrompt,
   parseBatchResponse,
   parseReviewResponse,
@@ -91,6 +92,53 @@ test("buildBatchPrompt: with system prompt uses short format", () => {
   );
   assert.ok(p.includes("1. Hello"));
   assert.ok(p.includes("2. World"));
+});
+
+test("buildBatchPrompt: msgCtxt injected as Context line", () => {
+  const p = buildBatchPrompt([{ msgId: "Post", matches: [], msgCtxt: "verb" }], "ne_NP", "");
+  assert.ok(p.includes("Context: verb"));
+  assert.ok(p.includes("disambiguation hints"));
+});
+
+test("buildBatchPrompt: translator comment injected as note", () => {
+  const p = buildBatchPrompt([{ msgId: "Hi %s", matches: [], comment: "translators: %s is a username" }], "ne_NP", "");
+  assert.ok(p.includes("Translator note: translators: %s is a username"));
+});
+
+test("buildBatchPrompt: distinct context per item for identical msgid", () => {
+  const p = buildBatchPrompt(
+    [
+      { msgId: "Post", matches: [], msgCtxt: "noun" },
+      { msgId: "Post", matches: [], msgCtxt: "verb" },
+    ],
+    "ne_NP",
+    "",
+  );
+  assert.ok(p.includes("Context: noun"));
+  assert.ok(p.includes("Context: verb"));
+});
+
+test("buildBatchPrompt: no annotation rule when no context/comment", () => {
+  const p = buildBatchPrompt([{ msgId: "Hello", matches: [] }], "ne_NP", "");
+  assert.ok(!p.includes("disambiguation hints"));
+});
+
+test("buildBatchPrompt: annotations present with system prompt", () => {
+  const p = buildBatchPrompt([{ msgId: "Post", matches: [], msgCtxt: "verb" }], "ne_NP", "You are a translator.");
+  assert.ok(p.includes("Context: verb"));
+  assert.ok(p.includes("disambiguation hints"));
+});
+
+test("buildPluralPrompt: context and note injected", () => {
+  const p = buildPluralPrompt("%s item", "%s items", 2, [], "ne_NP", "", "cart", "translators: %s is a count");
+  assert.ok(p.includes("Context: cart"));
+  assert.ok(p.includes("Translator note: translators: %s is a count"));
+  assert.ok(p.includes("disambiguation hints"));
+});
+
+test("buildPluralPrompt: no annotations by default", () => {
+  const p = buildPluralPrompt("%s item", "%s items", 2, [], "ne_NP", "");
+  assert.ok(!p.includes("disambiguation hints"));
 });
 
 // ---------------------------------------------------------------------------

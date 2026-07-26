@@ -134,6 +134,36 @@ test("runApiTranslate: mode cache-then-ai, cache miss falls through to AI", asyn
   assert.deepEqual(result, { kind: "singular", translation: "नमस्ते", source: "ai" });
 });
 
+test("runApiTranslate: msgctxt and comment reach the AI prompt", async (t) => {
+  let seenPrompt = "";
+  withDeps(t, {
+    loadCoreTranslations: () => ({}),
+    callAI: async (_c, prompt) => {
+      seenPrompt = prompt;
+      return { content: `{"1": "नमस्ते"}`, usage: null };
+    },
+  });
+  await runApiTranslate(baseConfig(), baseInput({ msgCtxt: "verb", comment: "translators: an action" }));
+  assert.ok(seenPrompt.includes("Context: verb"));
+  assert.ok(seenPrompt.includes("Translator note: translators: an action"));
+});
+
+test("runApiTranslate: differing msgctxt yields distinct prompts for identical msgid", async (t) => {
+  const prompts: string[] = [];
+  withDeps(t, {
+    loadCoreTranslations: () => ({}),
+    callAI: async (_c, prompt) => {
+      prompts.push(prompt);
+      return { content: `{"1": "नमस्ते"}`, usage: null };
+    },
+  });
+  await runApiTranslate(baseConfig(), baseInput({ msgId: "Post", msgCtxt: "noun" }));
+  await runApiTranslate(baseConfig(), baseInput({ msgId: "Post", msgCtxt: "verb" }));
+  assert.ok(prompts[0]!.includes("Context: noun"));
+  assert.ok(prompts[1]!.includes("Context: verb"));
+  assert.notEqual(prompts[0], prompts[1]);
+});
+
 // ---------------------------------------------------------------------------
 // Mode: ai
 // ---------------------------------------------------------------------------

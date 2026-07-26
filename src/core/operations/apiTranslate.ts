@@ -16,6 +16,8 @@ export interface ApiTranslateInput {
   mode: TranslateMode;
   msgIdPlural?: string;
   nplurals?: number;
+  // Optional translator note (PO `#.` comment), forwarded raw to the prompt.
+  comment?: string;
 }
 
 export type ApiTranslateResult =
@@ -68,7 +70,16 @@ export async function runApiTranslate(config: GlotConfig, input: ApiTranslateInp
   const matches = matchingGlossaryTerms(input.msgId, glossary, glossaryIdx);
 
   if (isPlural) {
-    const prompt = buildPluralPrompt(input.msgId, input.msgIdPlural!, input.nplurals!, matches, input.lang, systemPrompt);
+    const prompt = buildPluralPrompt(
+      input.msgId,
+      input.msgIdPlural!,
+      input.nplurals!,
+      matches,
+      input.lang,
+      systemPrompt,
+      input.msgCtxt,
+      input.comment ?? "",
+    );
     const result = await deps.callAI(config, prompt, systemPrompt, 0.1);
     const translations = parsePluralResponse(result.content, input.nplurals!);
     if (translations.every((t) => t === "")) {
@@ -77,7 +88,11 @@ export async function runApiTranslate(config: GlotConfig, input: ApiTranslateInp
     return { kind: "plural", translations, source: "ai" };
   }
 
-  const prompt = buildBatchPrompt([{ msgId: input.msgId, matches }], input.lang, systemPrompt);
+  const prompt = buildBatchPrompt(
+    [{ msgId: input.msgId, matches, msgCtxt: input.msgCtxt, comment: input.comment ?? "" }],
+    input.lang,
+    systemPrompt,
+  );
   const result = await deps.callAI(config, prompt, systemPrompt, 0.1);
   const [translation] = parseBatchResponse(result.content, 1);
   if (!translation) {

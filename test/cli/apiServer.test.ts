@@ -339,6 +339,32 @@ test("POST /api/v1/translate: mode ai calls AI and returns singular shape", asyn
   });
 });
 
+test("POST /api/v1/translate: comment and msgctxt are forwarded to the AI prompt", async (t) => {
+  const original = deps.callAI;
+  t.after(() => {
+    deps.callAI = original;
+  });
+  let seenPrompt = "";
+  deps.callAI = async (_c, prompt) => {
+    seenPrompt = prompt;
+    return { content: `{"1": "नमस्ते"}`, usage: null };
+  };
+
+  const config = baseConfig({ endpointUrl: "http://fake", modelId: "m" });
+  await withServer(config, async (base) => {
+    const res = await postTranslate(base, {
+      msgid: "Post",
+      msgctxt: "verb",
+      comment: "translators: an action",
+      lang: "ne_NP",
+      mode: "ai",
+    });
+    assert.equal(res.status, 200);
+  });
+  assert.ok(seenPrompt.includes("Context: verb"));
+  assert.ok(seenPrompt.includes("Translator note: translators: an action"));
+});
+
 test("POST /api/v1/translate: plural cache hit returns translations array with source core", async () => {
   const config = baseConfig({ endpointUrl: "http://fake", modelId: "m" });
   writeFileSync(join(config.coreDir, "ne_NP.json"), JSON.stringify({ "%d item": ["%d वस्तु", "%d वस्तुहरू"] }));

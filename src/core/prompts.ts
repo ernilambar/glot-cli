@@ -3,6 +3,29 @@ import type { GlossaryTerm, TermMatch } from "./glossary.ts";
 export interface BatchItem {
   msgId: string;
   matches: TermMatch[];
+  // Optional disambiguation hints, injected above the source string when present.
+  // msgCtxt is the PO msgctxt; comment is the extracted (`#.`) translator note,
+  // forwarded raw — WP-convention filtering (e.g. a "translators:" prefix) is the
+  // caller's responsibility, not core's.
+  msgCtxt?: string;
+  comment?: string;
+}
+
+const ANNOTATION_RULE =
+  "Some strings have a 'Context:' or 'Translator note:' line — these are disambiguation hints, " +
+  "not part of the string. Use them to pick the right meaning; never translate or output them.";
+
+function renderNumberedItem(it: BatchItem, i: number): string {
+  let out = `${i + 1}. ${it.msgId}`;
+  const ctx = it.msgCtxt?.trim() ?? "";
+  const note = it.comment?.trim() ?? "";
+  if (ctx !== "") {
+    out += `\n   Context: ${ctx}`;
+  }
+  if (note !== "") {
+    out += `\n   Translator note: ${note}`;
+  }
+  return out;
 }
 
 const FORMAT_INSTRUCTION =
@@ -21,7 +44,8 @@ export function buildBatchPrompt(items: BatchItem[], targetLang: string, systemP
     }
   }
 
-  const numbered = items.map((it, i) => `${i + 1}. ${it.msgId}`).join("\n");
+  const numbered = items.map((it, i) => renderNumberedItem(it, i)).join("\n");
+  const hasAnnotations = items.some((it) => (it.msgCtxt?.trim() ?? "") !== "" || (it.comment?.trim() ?? "") !== "");
 
   if (systemPrompt !== "") {
     let glossaryBlock = "";
@@ -29,7 +53,8 @@ export function buildBatchPrompt(items: BatchItem[], targetLang: string, systemP
       const lines = seenOrder.map((t) => `${t} = ${seenInfo[t]!.translation}`);
       glossaryBlock = `Approved terms:\n${lines.join("\n")}\n\n`;
     }
-    return `${glossaryBlock}Translate each numbered string:\n${numbered}\n\n${FORMAT_INSTRUCTION}`;
+    const annotationBlock = hasAnnotations ? `${ANNOTATION_RULE}\n\n` : "";
+    return `${glossaryBlock}${annotationBlock}Translate each numbered string:\n${numbered}\n\n${FORMAT_INSTRUCTION}`;
   }
 
   let glossaryBlock = "";
@@ -50,7 +75,8 @@ export function buildBatchPrompt(items: BatchItem[], targetLang: string, systemP
     "1. Passthrough: if the entire string is a URL, email, file path, or version number, return it unchanged.\n" +
     "2. String type: commands/buttons → imperative verb form; labels/statuses/nouns → concise word or phrase, no added verb; sentences → natural sentence.\n" +
     "3. Placeholders: keep exactly as-is — printf variables (%s, %d, %1$s), template variables ({{name}}, {{{{email}}}}), HTML tags, HTML entities (&amp;, &lt;, &gt;, &quot;), WordPress shortcodes, plugin/theme names, URLs.\n" +
-    "4. Glossary: if approved terms are listed, copy them exactly — no synonyms, no alternatives.\n";
+    "4. Glossary: if approved terms are listed, copy them exactly — no synonyms, no alternatives.\n" +
+    (hasAnnotations ? `5. ${ANNOTATION_RULE}\n` : "");
 
   return `Translate each numbered English WordPress UI string into ${targetLang}. ${rules}${FORMAT_INSTRUCTION}${glossaryBlock}\n\n${numbered}`;
 }
@@ -66,9 +92,21 @@ export function buildPluralPrompt(
   matches: TermMatch[],
   targetLang: string,
   systemPrompt: string,
+  msgCtxt = "",
+  comment = "",
 ): string {
   const formatInstruction = `Return ONLY a JSON array of exactly ${nplurals} translated forms: ["...", ...]. No explanation, no extra text.`;
-  const forms = `Singular English form: ${msgId}\nPlural English form: ${msgIdPlural}`;
+  const ctx = msgCtxt.trim();
+  const note = comment.trim();
+  let annotationLines = "";
+  if (ctx !== "") {
+    annotationLines += `Context: ${ctx}\n`;
+  }
+  if (note !== "") {
+    annotationLines += `Translator note: ${note}\n`;
+  }
+  const hasAnnotations = annotationLines !== "";
+  const forms = `${annotationLines}Singular English form: ${msgId}\nPlural English form: ${msgIdPlural}`;
 
   if (systemPrompt !== "") {
     let glossaryBlock = "";
@@ -76,7 +114,8 @@ export function buildPluralPrompt(
       const lines = matches.map((m) => `${m.term} = ${m.info.translation}`);
       glossaryBlock = `Approved terms:\n${lines.join("\n")}\n\n`;
     }
-    return `${glossaryBlock}Translate this string into exactly ${nplurals} grammatical plural forms:\n${forms}\n\n${formatInstruction}`;
+    const annotationBlock = hasAnnotations ? `${ANNOTATION_RULE}\n\n` : "";
+    return `${glossaryBlock}${annotationBlock}Translate this string into exactly ${nplurals} grammatical plural forms:\n${forms}\n\n${formatInstruction}`;
   }
 
   let glossaryBlock = "";
@@ -95,7 +134,8 @@ export function buildPluralPrompt(
     "Follow these rules strictly:\n" +
     "1. Produce exactly the requested number of plural forms, using the target language's own plural rules (not English's).\n" +
     "2. Placeholders: keep exactly as-is — printf variables (%s, %d, %1$s), template variables ({{name}}, {{{{email}}}}), HTML tags, HTML entities (&amp;, &lt;, &gt;, &quot;).\n" +
-    "3. Glossary: if approved terms are listed, copy them exactly — no synonyms, no alternatives.\n";
+    "3. Glossary: if approved terms are listed, copy them exactly — no synonyms, no alternatives.\n" +
+    (hasAnnotations ? `4. ${ANNOTATION_RULE}\n` : "");
 
   return `Translate this English WordPress UI string into ${targetLang}. ${rules}${formatInstruction}${glossaryBlock}\n\n${forms}`;
 }
