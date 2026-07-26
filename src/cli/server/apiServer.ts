@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
+import { VERSION } from "../../core/config.ts";
 import type { GlotConfig } from "../../core/config.ts";
 import { deps } from "../../core/deps.ts";
 import { GlotNotFoundError, GlotValidationError } from "../../core/errors.ts";
@@ -94,6 +95,19 @@ function isAuthorized(req: IncomingMessage, token: string): boolean {
   return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
+// Expose only the host of the AI endpoint, never the full URL (path/query may
+// carry deployment detail). Empty or unparseable config yields null.
+function endpointHost(endpointUrl: string): string | null {
+  if (endpointUrl === "") {
+    return null;
+  }
+  try {
+    return new URL(endpointUrl).host;
+  } catch {
+    return null;
+  }
+}
+
 // runGlossaryList/runCoreList return a 3-way outcome (dirNotFound/empty/listed)
 // the CLI uses to print different messages; the API only needs "is there
 // anything," so all three collapse to [] or the items array.
@@ -116,6 +130,22 @@ export function createApiServer(config: GlotConfig, token: string): Server {
     try {
       if (req.method === "GET" && route.length === 1 && route[0] === "ping") {
         sendJson(res, 200, { status: "ok" });
+        return;
+      }
+
+      if (req.method === "GET" && route.length === 1 && route[0] === "info") {
+        sendJson(res, 200, {
+          version: VERSION,
+          model: config.modelId,
+          lang: config.lang,
+          endpointHost: endpointHost(config.endpointUrl),
+          limits: {
+            maxStrings: config.maxStrings,
+            batchSize: config.batchSize,
+            concurrency: config.concurrency,
+            requestTimeout: config.requestTimeout,
+          },
+        });
         return;
       }
 
