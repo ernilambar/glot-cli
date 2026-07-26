@@ -205,7 +205,7 @@ export async function runTranslate(
 
         if (u.isPlural) {
           const e = c[0]!;
-          const matches = matchingGlossaryTerms(e.msgId, glossary, glossaryIdx);
+          const matches = matchingGlossaryTerms(e.msgId, glossary, glossaryIdx, e.msgCtxt);
           const prompt = buildPluralPrompt(e.msgId, e.msgIdPlural, nplurals, matches, lang, systemPrompt, e.msgCtxt, e.extractedComments.join(" "));
 
           let translations: string[];
@@ -249,7 +249,7 @@ export async function runTranslate(
 
         const items = c.map((e) => ({
           msgId: e.msgId,
-          matches: matchingGlossaryTerms(e.msgId, glossary, glossaryIdx),
+          matches: matchingGlossaryTerms(e.msgId, glossary, glossaryIdx, e.msgCtxt),
           msgCtxt: e.msgCtxt,
           comment: e.extractedComments.join(" "),
         }));

@@ -16,7 +16,12 @@ function parseTsvLine(line: string): string[] {
   return line.split("\t");
 }
 
-export function loadGlossary(glossaryDir: string, targetLang: string): Record<string, GlossaryTerm> {
+// A single English term can appear on multiple rows with different `pos`
+// (e.g. WordPress core ships "post" as both noun and verb). Each term maps to
+// the list of its variants in file order — collapsing them to one would drop
+// every reading but the last, which is exactly what defeats msgctxt-based
+// disambiguation at match time.
+export function loadGlossary(glossaryDir: string, targetLang: string): Record<string, GlossaryTerm[]> {
   const path = join(glossaryDir, `${targetLang}.tsv`);
   if (!existsSync(path)) {
     return {};
@@ -36,7 +41,7 @@ export function loadGlossary(glossaryDir: string, targetLang: string): Record<st
   // The lang column is the second column per Python behavior.
   const langCol = header.length > 1 ? 1 : -1;
 
-  const out: Record<string, GlossaryTerm> = {};
+  const out: Record<string, GlossaryTerm[]> = {};
   for (const line of lines.slice(1)) {
     const row = parseTsvLine(line);
     if (colEN < 0 || colEN >= row.length) {
@@ -50,12 +55,12 @@ export function loadGlossary(glossaryDir: string, targetLang: string): Record<st
     const translation = raw !== "" ? raw.split(",")[0]!.trim() : "";
     const pos = colPos >= 0 && colPos < row.length ? row[colPos]!.trim() : "";
     const note = colDesc >= 0 && colDesc < row.length ? row[colDesc]!.trim() : "";
-    out[term] = { translation, pos, note };
+    (out[term] ??= []).push({ translation, pos, note });
   }
   return out;
 }
 
-export function buildGlossaryIndex(glossary: Record<string, GlossaryTerm>): Record<string, string[]> {
+export function buildGlossaryIndex(glossary: Record<string, GlossaryTerm[]>): Record<string, string[]> {
   const idx: Record<string, string[]> = {};
   for (const term of Object.keys(glossary)) {
     const first = term.split(" ")[0] ?? term;
@@ -71,10 +76,27 @@ export function tokenize(text: string): string[] {
   return matches.map((t) => t.toLowerCase());
 }
 
+// Pick the glossary variant to apply for a matched term. When the string's
+// msgctxt names a part of speech (e.g. "noun" / "verb"), prefer the variant
+// whose `pos` matches it — this is what lets "Post" [noun] and "Post" [verb]
+// resolve to different glossary translations. Otherwise fall back to the first
+// variant in file order.
+function pickVariant(variants: GlossaryTerm[], msgCtxt: string): GlossaryTerm {
+  const ctx = msgCtxt.trim().toLowerCase();
+  if (ctx !== "") {
+    const byPos = variants.find((v) => v.pos.trim().toLowerCase() === ctx);
+    if (byPos) {
+      return byPos;
+    }
+  }
+  return variants[0]!;
+}
+
 export function matchingGlossaryTerms(
   text: string,
-  glossary: Record<string, GlossaryTerm>,
+  glossary: Record<string, GlossaryTerm[]>,
   index: Record<string, string[]>,
+  msgCtxt = "",
 ): TermMatch[] {
   if (Object.keys(glossary).length === 0) {
     return [];
@@ -97,7 +119,7 @@ export function matchingGlossaryTerms(
       }
       if (match && !seen.has(term)) {
         seen.add(term);
-        out.push({ term, info: glossary[term]! });
+        out.push({ term, info: pickVariant(glossary[term]!, msgCtxt) });
       }
     }
   }
