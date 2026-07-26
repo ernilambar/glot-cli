@@ -1,6 +1,6 @@
 {
   "name": "glot-cli",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Translate WordPress .po files using any OpenAI-compatible backend.",
   "homepage": "https://github.com/ernilambar/glot-cli#readme",
   "bugs": {

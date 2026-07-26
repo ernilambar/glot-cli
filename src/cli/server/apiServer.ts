@@ -48,6 +48,7 @@ function parseTranslateBody(raw: string): ApiTranslateInput {
   }
 
   const msgCtxt = typeof body.msgctxt === "string" ? body.msgctxt : "";
+  const comment = typeof body.comment === "string" ? body.comment : "";
 
   let mode: TranslateMode = "cache-then-ai";
   if (body.mode !== undefined) {
@@ -67,7 +68,7 @@ function parseTranslateBody(raw: string): ApiTranslateInput {
     nplurals = body.nplurals;
   }
 
-  return { msgId, msgCtxt, lang, mode, msgIdPlural, nplurals };
+  return { msgId, msgCtxt, comment, lang, mode, msgIdPlural, nplurals };
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {

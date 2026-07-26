@@ -89,6 +89,32 @@ test("runTranslate: AI translations written to file", async (t) => {
   assert.equal(found["World"], "संसार");
 });
 
+test("runTranslate: extractedComments and msgctxt reach the batch prompt", async (t) => {
+  const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({});
+  let sentPrompt = "";
+  deps.callAI = async (_config, prompt) => {
+    sentPrompt = prompt;
+    return { content: `{"1": "नमस्ते"}`, usage: null };
+  };
+
+  const p = writePo(`msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\\n"
+
+#. translators: %s is a username
+msgctxt "verb"
+msgid "Hello %s"
+msgstr ""
+`);
+  const result = await runTranslate(baseConfig(), p, "ne_NP", 0);
+  assert.equal(result.outcome, "translated");
+
+  assert.match(sentPrompt, /Context: verb/);
+  assert.match(sentPrompt, /Translator note: translators: %s is a username/);
+});
+
 test("runTranslate: unwritable file throws GlotRuntimeError", { skip: process.getuid?.() === 0 }, async (t) => {
   const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
   t.after(() => Object.assign(deps, original));
