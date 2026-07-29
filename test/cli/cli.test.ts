@@ -44,6 +44,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     batchSize: 10,
     concurrency: 1,
     requestTimeout: 0,
+    batchDelay: 0,
     debug: false,
     ...overrides,
   };

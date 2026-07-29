@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
+  DEFAULT_BATCH_DELAY,
   DEFAULT_BATCH_SIZE,
   DEFAULT_CONCURRENCY,
   DEFAULT_MAX_STRINGS,
@@ -35,6 +36,7 @@ export function loadConfigFromEnv(): GlotConfig {
     batchSize: parseIntEnv(process.env.GLOT_BATCH_SIZE, DEFAULT_BATCH_SIZE),
     concurrency: parseIntEnv(process.env.GLOT_CONCURRENCY, DEFAULT_CONCURRENCY),
     requestTimeout: parseIntEnv(process.env.GLOT_REQUEST_TIMEOUT, DEFAULT_REQUEST_TIMEOUT),
+    batchDelay: parseIntEnv(process.env.GLOT_BATCH_DELAY, DEFAULT_BATCH_DELAY),
     debug: false,
   };
 }

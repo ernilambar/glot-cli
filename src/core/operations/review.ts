@@ -27,6 +27,8 @@ export type ReviewResult =
 const PLACEHOLDER_RE = /%(\d+\$)?[sd]/;
 const URL_OR_EMAIL_ONLY_RE = /^(https?:\/\/\S+|mailto:\S+|[^\s@]+@[^\s@]+\.[^\s@]+)$/i;
 
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -88,6 +90,10 @@ export async function runReview(
   await Promise.all(
     chunks.map((c, idx) =>
       limiter(async () => {
+        if (config.batchDelay > 0) {
+          await sleep(config.batchDelay * 1000);
+        }
+
         const msgids = c.map((e) => e.msgId);
         const prompt = buildReviewPrompt(msgids);
 

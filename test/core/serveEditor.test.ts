@@ -22,6 +22,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     batchSize: 10,
     concurrency: 1,
     requestTimeout: 0,
+    batchDelay: 0,
     debug: false,
     ...overrides,
   };
@@ -109,5 +110,17 @@ test("translateSingle: always calls AI, even when the core cache has a match", a
 
   const result = await translateSingle(baseConfig(), "World", "ne_NP");
   assert.deepEqual(result, { translation: "संसार" });
+});
+
+test("translateSingle: batchDelay is ignored — single-call path never sleeps", async (t) => {
+  const original = deps.callAI;
+  t.after(() => {
+    deps.callAI = original;
+  });
+  deps.callAI = async () => ({ content: `{"1": "संसार"}`, usage: null });
+
+  const start = performance.now();
+  await translateSingle(baseConfig({ batchDelay: 1 }), "World", "ne_NP");
+  assert.ok(performance.now() - start < 500, "translateSingle must not sleep for batchDelay");
 });
 

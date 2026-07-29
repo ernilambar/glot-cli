@@ -23,6 +23,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     batchSize: 10,
     concurrency: 1,
     requestTimeout: 0,
+    batchDelay: 0,
     debug: false,
     ...overrides,
   };
@@ -294,6 +295,35 @@ test("runTranslate: negative limit throws GlotValidationError", async () => {
 test("runTranslate: invalid PO file throws GlotValidationError", async () => {
   const p = writePo("this is not a po file\njust plain text\n", "not_a_po.txt");
   await assert.rejects(() => runTranslate(baseConfig(), p, "ne_NP", 0), GlotValidationError);
+});
+
+test("runTranslate: batchDelay > 0 paces sequential batch calls", async (t) => {
+  const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({});
+  const timestamps: number[] = [];
+  deps.callAI = async () => {
+    timestamps.push(performance.now());
+    return { content: `{"1": "नमस्ते"}`, usage: null };
+  };
+
+  const p = writePo(untranslatedPO);
+  await runTranslate(baseConfig({ batchSize: 1, batchDelay: 0.05 }), p, "ne_NP", 0);
+
+  assert.equal(timestamps.length, 2);
+  assert.ok(timestamps[1]! - timestamps[0]! >= 45, `expected gap >= ~50ms, got ${timestamps[1]! - timestamps[0]!}`);
+});
+
+test("runTranslate: batchDelay = 0 adds no latency", async (t) => {
+  const original = { callAI: deps.callAI, loadCoreTranslations: deps.loadCoreTranslations };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({});
+  deps.callAI = async () => ({ content: `{"1": "नमस्ते", "2": "संसार"}`, usage: null });
+
+  const p = writePo(untranslatedPO);
+  const start = performance.now();
+  await runTranslate(baseConfig({ batchDelay: 0 }), p, "ne_NP", 0);
+  assert.ok(performance.now() - start < 45, "expected no added latency with batchDelay: 0");
 });
 
 test("runTranslate: rejects invalid lang", async (t) => {

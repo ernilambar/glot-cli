@@ -144,6 +144,7 @@ export function createApiServer(config: GlotConfig, token: string): Server {
             batchSize: config.batchSize,
             concurrency: config.concurrency,
             requestTimeout: config.requestTimeout,
+            batchDelay: config.batchDelay,
           },
         });
         return;
