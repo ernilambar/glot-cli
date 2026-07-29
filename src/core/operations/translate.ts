@@ -39,6 +39,8 @@ export type TranslateResult =
       remaining: number;
     };
 
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -201,6 +203,10 @@ export async function runTranslate(
   await Promise.all(
     units.map((u, idx) =>
       limiter(async () => {
+        if (config.batchDelay > 0) {
+          await sleep(config.batchDelay * 1000);
+        }
+
         const c = u.entries;
 
         if (u.isPlural) {

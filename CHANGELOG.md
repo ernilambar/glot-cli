@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.7 - 2026-07-29
+- Added: `GLOT_BATCH_DELAY` env var to pace sequential batch API calls
+
 ## 1.0.6 - 2026-07-26
 - Added: context (`msgctxt`) support in glossary terms
 - Added: `GET /info` endpoint exposing basic info

@@ -22,6 +22,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     batchSize: 10,
     concurrency: 1,
     requestTimeout: 0,
+    batchDelay: 0,
     debug: false,
     ...overrides,
   };
@@ -143,6 +144,27 @@ test("runReview: machine formats (json/csv/markdown) suppress progress events", 
   const events: unknown[] = [];
   await runReview(baseConfig(), p, "json", (e) => events.push(e));
   assert.equal(events.length, 0);
+});
+
+test("runReview: batchDelay > 0 paces sequential batch calls", async (t) => {
+  const timestamps: number[] = [];
+  mockCallAI(t, async () => {
+    timestamps.push(performance.now());
+    return { content: "{}", usage: null };
+  });
+  const p = writePo(potContent);
+  await runReview(baseConfig({ batchSize: 2, batchDelay: 0.05 }), p, "text");
+
+  assert.equal(timestamps.length, 2);
+  assert.ok(timestamps[1]! - timestamps[0]! >= 45, `expected gap >= ~50ms, got ${timestamps[1]! - timestamps[0]!}`);
+});
+
+test("runReview: batchDelay = 0 adds no latency", async (t) => {
+  mockCallAI(t, async () => ({ content: "{}", usage: null }));
+  const p = writePo(potContent);
+  const start = performance.now();
+  await runReview(baseConfig({ batchDelay: 0 }), p, "text");
+  assert.ok(performance.now() - start < 45, "expected no added latency with batchDelay: 0");
 });
 
 test("runReview: no strings found", async () => {

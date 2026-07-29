@@ -23,6 +23,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     batchSize: 10,
     concurrency: 1,
     requestTimeout: 0,
+    batchDelay: 0,
     debug: false,
     ...overrides,
   };
@@ -251,4 +252,14 @@ test("runApiTranslate: plural mode cache, miss -> GlotNotFoundError, never calls
   });
   await assert.rejects(() => runApiTranslate(baseConfig(), pluralInput({ mode: "cache" })), GlotNotFoundError);
   assert.equal(aiCalled, false);
+});
+
+test("runApiTranslate: batchDelay is ignored — single-call path never sleeps", async (t) => {
+  withDeps(t, {
+    loadCoreTranslations: () => ({}),
+    callAI: async () => ({ content: `{"1": "नमस्ते"}`, usage: null }),
+  });
+  const start = performance.now();
+  await runApiTranslate(baseConfig({ batchDelay: 1 }), baseInput());
+  assert.ok(performance.now() - start < 500, "runApiTranslate must not sleep for batchDelay");
 });

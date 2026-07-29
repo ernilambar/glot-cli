@@ -25,6 +25,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     batchSize: 10,
     concurrency: 1,
     requestTimeout: 0,
+    batchDelay: 0,
     debug: false,
     ...overrides,
   };
@@ -62,6 +63,7 @@ test("GET /api/v1/info: returns version, model, lang, endpoint host, and limits"
     batchSize: 5,
     concurrency: 2,
     requestTimeout: 90,
+    batchDelay: 3,
   });
   await withServer(config, async (base) => {
     const res = await fetch(`${base}/api/v1/info`, { headers: AUTH });
@@ -77,6 +79,7 @@ test("GET /api/v1/info: returns version, model, lang, endpoint host, and limits"
       batchSize: 5,
       concurrency: 2,
       requestTimeout: 90,
+      batchDelay: 3,
     });
     // Secrets and filesystem paths must never leak.
     assert.ok(!("apiKey" in body));

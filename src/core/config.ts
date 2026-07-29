@@ -1,4 +1,4 @@
-export const VERSION = "1.0.6";
+export const VERSION = "1.0.7";
 
 export interface GlotConfig {
   endpointUrl: string;
@@ -13,6 +13,7 @@ export interface GlotConfig {
   batchSize: number;
   concurrency: number;
   requestTimeout: number; // seconds; 0 disables timeout
+  batchDelay: number; // seconds; 0 disables
   debug: boolean;
 }
 
@@ -20,6 +21,7 @@ export const DEFAULT_MAX_STRINGS = 200;
 export const DEFAULT_BATCH_SIZE = 10;
 export const DEFAULT_CONCURRENCY = 1;
 export const DEFAULT_REQUEST_TIMEOUT = 120;
+export const DEFAULT_BATCH_DELAY = 0;
 
 export const CORE_PROJECTS = [
   "wp/dev/{slug}/default",

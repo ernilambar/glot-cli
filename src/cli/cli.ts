@@ -53,6 +53,7 @@ ENVIRONMENT
   GLOT_BATCH_SIZE     Strings per API call (default: 10)
   GLOT_CONCURRENCY    Parallel API calls (default: 1)
   GLOT_REQUEST_TIMEOUT Request timeout in seconds (default: 120; 0 disables)
+  GLOT_BATCH_DELAY    Delay before each batch API call, in seconds (default: 0)
 `;
 
 export async function runCli(argv: string[], config: GlotConfig = loadConfigFromEnv()): Promise<void> {
