@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { GlotConfig } from "../../src/core/config.ts";
-import { loadCoreTranslations, loadSystemPrompt } from "../../src/core/core-translations.ts";
+import {
+  loadCoreTranslations,
+  loadMergedCoreCache,
+  loadSystemPrompt,
+  loadTranslationsCache,
+} from "../../src/core/core-translations.ts";
+import { deps } from "../../src/core/deps.ts";
 
 function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
   return {
@@ -16,6 +22,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: "",
     promptsDir: "",
     coreDir: "",
+    translationsDir: "",
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,
@@ -50,6 +57,42 @@ test("loadCoreTranslations: plural array values load alongside string values", (
     Hello: "नमस्ते",
     "%d item": ["%d वस्तु", "%d वस्तुहरू"],
   });
+});
+
+test("loadTranslationsCache: missing file returns empty object", () => {
+  const dir = mkdtempSync(join(tmpdir(), "glot-translations-"));
+  assert.deepEqual(loadTranslationsCache(baseConfig({ translationsDir: dir }), "ne_NP"), {});
+});
+
+test("loadTranslationsCache: valid JSON file returns its contents", () => {
+  const dir = mkdtempSync(join(tmpdir(), "glot-translations-"));
+  writeFileSync(join(dir, "ne_NP.json"), JSON.stringify({ Hello: "custom" }));
+  assert.deepEqual(loadTranslationsCache(baseConfig({ translationsDir: dir }), "ne_NP"), { Hello: "custom" });
+});
+
+test("loadMergedCoreCache: merges core and translations, translations wins on collision", () => {
+  const coreDir = mkdtempSync(join(tmpdir(), "glot-core-"));
+  const translationsDir = mkdtempSync(join(tmpdir(), "glot-translations-"));
+  writeFileSync(join(coreDir, "ne_NP.json"), JSON.stringify({ Hello: "core", Bye: "core-bye" }));
+  writeFileSync(join(translationsDir, "ne_NP.json"), JSON.stringify({ Hello: "custom" }));
+  const config = baseConfig({ coreDir, translationsDir });
+  assert.deepEqual(loadMergedCoreCache(config, "ne_NP"), { Hello: "custom", Bye: "core-bye" });
+});
+
+test("loadMergedCoreCache: goes through deps, so swapped deps are honored", () => {
+  const originalCore = deps.loadCoreTranslations;
+  const originalTranslations = deps.loadTranslationsCache;
+  deps.loadCoreTranslations = () => ({ Hello: "core-mock" });
+  deps.loadTranslationsCache = () => ({ Bye: "translations-mock" });
+  try {
+    assert.deepEqual(loadMergedCoreCache(baseConfig(), "ne_NP"), {
+      Hello: "core-mock",
+      Bye: "translations-mock",
+    });
+  } finally {
+    deps.loadCoreTranslations = originalCore;
+    deps.loadTranslationsCache = originalTranslations;
+  }
 });
 
 test("loadSystemPrompt: missing file returns empty string", () => {

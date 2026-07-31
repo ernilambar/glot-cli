@@ -40,6 +40,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: "",
     promptsDir: "",
     coreDir: "",
+    translationsDir: "",
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,
@@ -121,6 +122,64 @@ test("runCli: glossary with no subcommand exits 2", async (t) => {
   assert.deepEqual(codes, [2]);
 });
 
+test("runCli: translations with no subcommand exits 2", async (t) => {
+  const codes = mockExit(t);
+  await assert.rejects(() => runCli(["translations"], baseConfig()), ExitSentinel);
+  assert.deepEqual(codes, [2]);
+});
+
+test("runCli: glossary pull without locale exits 2 with a clear message", async (t) => {
+  const codes = mockExit(t);
+  let stderr = "";
+  t.mock.method(process.stderr, "write", (chunk: string) => {
+    stderr += chunk;
+    return true;
+  });
+  await assert.rejects(() => runCli(["glossary", "pull"], baseConfig()), ExitSentinel);
+  assert.deepEqual(codes, [2]);
+  assert.match(stderr, /locale is required/);
+});
+
+test("runCli: core pull without locale exits 2 with a clear message", async (t) => {
+  const codes = mockExit(t);
+  let stderr = "";
+  t.mock.method(process.stderr, "write", (chunk: string) => {
+    stderr += chunk;
+    return true;
+  });
+  await assert.rejects(() => runCli(["core", "pull"], baseConfig()), ExitSentinel);
+  assert.deepEqual(codes, [2]);
+  assert.match(stderr, /locale is required/);
+});
+
+test("runCli: translations import without --lang exits 2 with a clear message", async (t) => {
+  const codes = mockExit(t);
+  let stderr = "";
+  t.mock.method(process.stderr, "write", (chunk: string) => {
+    stderr += chunk;
+    return true;
+  });
+  const dir = mkdtempSync(join(tmpdir(), "glot-po-"));
+  const p = join(dir, "a.po");
+  writeFileSync(p, 'msgid ""\nmsgstr ""\n');
+  await assert.rejects(() => runCli(["translations", "import", p], baseConfig()), ExitSentinel);
+  assert.deepEqual(codes, [2]);
+  assert.match(stderr, /--lang is required/);
+});
+
+test("runCli: translations import without files exits 2 with a clear message", async (t) => {
+  const codes = mockExit(t);
+  let stderr = "";
+  t.mock.method(process.stderr, "write", (chunk: string) => {
+    stderr += chunk;
+    return true;
+  });
+  const config = baseConfig({ translationsDir: mkdtempSync(join(tmpdir(), "glot-translations-")) });
+  await assert.rejects(() => runCli(["translations", "import", "--lang", "ne_NP"], config), ExitSentinel);
+  assert.deepEqual(codes, [2]);
+  assert.match(stderr, /at least one file or directory is required/);
+});
+
 // ---------------------------------------------------------------------------
 // runCli: business-logic failures surfaced through a command -> exit 2 (GlotValidationError)
 // ---------------------------------------------------------------------------
@@ -159,4 +218,33 @@ msgstr "नमस्ते"
   await runCli(["status", p], baseConfig());
   assert.match(written, /Total\s+1/);
   assert.match(written, /Translated\s+1/);
+});
+
+test("runCli: translations import writes the cache and translations list reads it back", async (t) => {
+  mockExit(t); // fail loudly if exit() is unexpectedly called
+  let written = "";
+  t.mock.method(process.stdout, "write", (chunk: string) => {
+    written += chunk;
+    return true;
+  });
+
+  const dir = mkdtempSync(join(tmpdir(), "glot-po-"));
+  const p = join(dir, "a.po");
+  writeFileSync(
+    p,
+    `msgid ""
+msgstr ""
+
+msgid "Hello"
+msgstr "नमस्ते"
+`,
+  );
+
+  const config = baseConfig({ translationsDir: mkdtempSync(join(tmpdir(), "glot-translations-")) });
+  await runCli(["translations", "import", p, "--lang", "ne_NP"], config);
+  assert.match(written, /Saved 1 entries/);
+
+  written = "";
+  await runCli(["translations", "list"], config);
+  assert.match(written, /ne_NP/);
 });

@@ -32,6 +32,7 @@ export function loadConfigFromEnv(): GlotConfig {
     glossaryDir: join(dataDir, "glossary"),
     promptsDir: join(dataDir, "prompts"),
     coreDir: join(dataDir, "core"),
+    translationsDir: join(dataDir, "translations"),
     maxStrings: parseIntEnv(process.env.GLOT_MAX_STRINGS, DEFAULT_MAX_STRINGS),
     batchSize: parseIntEnv(process.env.GLOT_BATCH_SIZE, DEFAULT_BATCH_SIZE),
     concurrency: parseIntEnv(process.env.GLOT_CONCURRENCY, DEFAULT_CONCURRENCY),

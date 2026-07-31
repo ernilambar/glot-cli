@@ -10,7 +10,7 @@ import { coreCacheKey, detectPluralCount, isTranslated } from "../po/entry.ts";
 import { PoFile } from "../po/poFile.ts";
 import type { Entry } from "../po/types.ts";
 import { buildBatchPrompt, buildPluralPrompt, parseBatchResponse, parsePluralResponse } from "../prompts.ts";
-import { loadSystemPrompt } from "../core-translations.ts";
+import { loadMergedCoreCache, loadSystemPrompt } from "../core-translations.ts";
 
 export interface FailedEntry {
   msgId: string;
@@ -76,7 +76,7 @@ export async function runTranslate(
   const glossary = loadGlossary(config.glossaryDir, lang);
   const glossaryIdx = buildGlossaryIndex(glossary);
   const systemPrompt = loadSystemPrompt(config, lang);
-  const core = deps.loadCoreTranslations(config, lang);
+  const core = loadMergedCoreCache(config, lang);
 
   let pf: PoFile;
   try {

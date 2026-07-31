@@ -21,8 +21,7 @@ function parseTsvLine(line: string): string[] {
 // the list of its variants in file order — collapsing them to one would drop
 // every reading but the last, which is exactly what defeats msgctxt-based
 // disambiguation at match time.
-export function loadGlossary(glossaryDir: string, targetLang: string): Record<string, GlossaryTerm[]> {
-  const path = join(glossaryDir, `${targetLang}.tsv`);
+function parseGlossaryFile(path: string): Record<string, GlossaryTerm[]> {
   if (!existsSync(path)) {
     return {};
   }
@@ -58,6 +57,15 @@ export function loadGlossary(glossaryDir: string, targetLang: string): Record<st
     (out[term] ??= []).push({ translation, pos, note });
   }
   return out;
+}
+
+// Custom glossary terms live in glossaryDir/custom/<lang>.tsv and win on a
+// whole-term collision with the core glossary — a custom entry replaces all
+// of a term's core pos-variants rather than merging row-by-row.
+export function loadGlossary(glossaryDir: string, targetLang: string): Record<string, GlossaryTerm[]> {
+  const core = parseGlossaryFile(join(glossaryDir, `${targetLang}.tsv`));
+  const custom = parseGlossaryFile(join(glossaryDir, "custom", `${targetLang}.tsv`));
+  return { ...core, ...custom };
 }
 
 export function buildGlossaryIndex(glossary: Record<string, GlossaryTerm[]>): Record<string, string[]> {

@@ -18,6 +18,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: mkdtempSync(join(tmpdir(), "glot-glossary-")),
     promptsDir: mkdtempSync(join(tmpdir(), "glot-prompts-")),
     coreDir: mkdtempSync(join(tmpdir(), "glot-core-")),
+    translationsDir: mkdtempSync(join(tmpdir(), "glot-translations-")),
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,
@@ -105,6 +106,24 @@ test("GET /: shows every approved core-cache match as a clickable chip", async (
     assert.match(html, /data-suggestion="नमस्ते"/);
     assert.match(html, /data-suggestion="नमस्कार"/);
     assert.match(html, /class="suggestion-tag">WP</);
+  });
+});
+
+test("GET /: shows custom-translations-cache matches alongside core matches", async (t) => {
+  const originalCore = deps.loadCoreTranslations;
+  const originalTranslations = deps.loadTranslationsCache;
+  t.after(() => {
+    deps.loadCoreTranslations = originalCore;
+    deps.loadTranslationsCache = originalTranslations;
+  });
+  deps.loadCoreTranslations = () => ({});
+  deps.loadTranslationsCache = () => ({ Hello: "custom नमस्ते" });
+
+  const p = writePo(SAMPLE_PO);
+  await withServer(baseConfig(), p, "ne_NP", async (base) => {
+    const res = await fetch(`${base}/`);
+    const html = await res.text();
+    assert.match(html, /data-suggestion="custom नमस्ते"/);
   });
 });
 

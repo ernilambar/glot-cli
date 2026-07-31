@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { renderCoreList, renderGlossaryList, renderReviewReport, renderStatus } from "../../src/cli/render.ts";
+import { renderCoreList, renderGlossaryList, renderReviewReport, renderStatus, renderTranslationsList } from "../../src/cli/render.ts";
 import type { ReviewItem } from "../../src/core/operations/review.ts";
 
 function sampleReport(): ReviewItem[] {
@@ -123,16 +123,35 @@ test("renderGlossaryList: dirNotFound / empty / listed", () => {
   const out = renderGlossaryList({
     outcome: "listed",
     dataDir: "/data",
-    items: [{ locale: "ne_NP", lastUpdated: "2026-01-01", entries: 5 }],
+    items: [
+      { locale: "ne_NP", lastUpdated: "2026-01-01", entries: 5, hasCustom: true },
+      { locale: "de_DE", lastUpdated: "2026-01-02", entries: 3, hasCustom: false },
+    ],
   });
   assert.match(out, /ne_NP/);
   assert.match(out, /5/);
+  assert.match(out, /ne_NP\s+2026-01-01\s+5\s+yes/);
+  assert.match(out, /de_DE\s+2026-01-02\s+3\s+no/);
 });
 
 test("renderCoreList: dirNotFound / empty / listed", () => {
   assert.match(renderCoreList({ outcome: "dirNotFound", dir: "/x" }), /Core directory not found: \/x/);
   assert.match(renderCoreList({ outcome: "empty" }), /No core translation files found/);
   const out = renderCoreList({
+    outcome: "listed",
+    dataDir: "/data",
+    items: [{ locale: "ne_NP", lastUpdated: "2026-01-01", entries: 5 }],
+  });
+  assert.match(out, /ne_NP/);
+});
+
+test("renderTranslationsList: dirNotFound / empty / listed", () => {
+  assert.match(
+    renderTranslationsList({ outcome: "dirNotFound", dir: "/x" }),
+    /Translations directory not found: \/x/,
+  );
+  assert.match(renderTranslationsList({ outcome: "empty" }), /No translations cache files found/);
+  const out = renderTranslationsList({
     outcome: "listed",
     dataDir: "/data",
     items: [{ locale: "ne_NP", lastUpdated: "2026-01-01", entries: 5 }],

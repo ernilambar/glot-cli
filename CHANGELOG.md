@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8 - 2026-07-31
+- Added: custom glossary support via `glossary/custom/<locale>.tsv`, merged with the core glossary (custom wins)
+- Added: `glot translations import`/`list` — import approved translations from PO files into a custom cache
+- Added: `GET /api/v1/translations` endpoint
+
 ## 1.0.7 - 2026-07-29
 - Added: `GLOT_BATCH_DELAY` env var to pace sequential batch API calls
 

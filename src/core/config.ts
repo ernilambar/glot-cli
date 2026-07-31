@@ -1,4 +1,4 @@
-export const VERSION = "1.0.7";
+export const VERSION = "1.0.8";
 
 export interface GlotConfig {
   endpointUrl: string;
@@ -9,6 +9,7 @@ export interface GlotConfig {
   glossaryDir: string;
   promptsDir: string;
   coreDir: string;
+  translationsDir: string;
   maxStrings: number;
   batchSize: number;
   concurrency: number;

@@ -19,6 +19,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: mkdtempSync(join(tmpdir(), "glot-glossary-")),
     promptsDir: mkdtempSync(join(tmpdir(), "glot-prompts-")),
     coreDir: mkdtempSync(join(tmpdir(), "glot-core-")),
+    translationsDir: mkdtempSync(join(tmpdir(), "glot-translations-")),
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,
@@ -144,6 +145,36 @@ test("runTranslate: core cache skips AI", async (t) => {
   assert.equal(aiCalled, false);
   assert.equal(result.outcome, "translated");
   assert.ok(events.some((e) => (e as { type: string; count?: number }).type === "coreMatches" && (e as { count: number }).count === 2));
+});
+
+test("runTranslate: custom translations cache hit also skips AI, wins over core on collision", async (t) => {
+  const original = {
+    callAI: deps.callAI,
+    loadCoreTranslations: deps.loadCoreTranslations,
+    loadTranslationsCache: deps.loadTranslationsCache,
+  };
+  t.after(() => Object.assign(deps, original));
+  deps.loadCoreTranslations = () => ({ Hello: "core नमस्ते", World: "संसार" });
+  deps.loadTranslationsCache = () => ({ Hello: "custom नमस्ते" });
+  let aiCalled = false;
+  deps.callAI = async () => {
+    aiCalled = true;
+    return { content: "", usage: null };
+  };
+
+  const p = writePo(untranslatedPO);
+  const result = await runTranslate(baseConfig(), p, "ne_NP", 0);
+
+  assert.equal(aiCalled, false);
+  assert.equal(result.outcome, "translated");
+
+  const pf = PoFile.parseFile(p);
+  const found: Record<string, string> = {};
+  for (const e of pf.translatableEntries()) {
+    found[e.msgId] = e.msgStr;
+  }
+  assert.equal(found["Hello"], "custom नमस्ते");
+  assert.equal(found["World"], "संसार");
 });
 
 const pluralPO = `msgid ""

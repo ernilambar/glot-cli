@@ -1,8 +1,9 @@
 import type { UsageInfo } from "../core/ai-client.ts";
 import type { CoreListItem, CoreListResult } from "../core/operations/corePull.ts";
-import type { GlossaryListItem, GlossaryListResult } from "../core/operations/glossaryPull.ts";
+import type { GlossaryListResult } from "../core/operations/glossaryPull.ts";
 import type { ReviewItem } from "../core/operations/review.ts";
 import type { StatusResult } from "../core/operations/status.ts";
+import type { TranslationsListItem, TranslationsListResult } from "../core/operations/translationsImport.ts";
 
 export function truncateStr(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n)}...` : s;
@@ -154,10 +155,7 @@ export function renderStatus(result: StatusResult): string {
   return out;
 }
 
-function renderDataList(
-  items: GlossaryListItem[] | CoreListItem[],
-  dataDir: string,
-): string {
+function renderDataList(items: CoreListItem[] | TranslationsListItem[], dataDir: string): string {
   let out = `Data dir: ${dataDir}\n\n`;
   out += `${"LOCALE".padEnd(12)}  ${"LAST UPDATED".padEnd(12)}  ENTRIES\n`;
   out += `${"------------".padEnd(12)}  ${"------------".padEnd(12)}  -------\n`;
@@ -174,7 +172,13 @@ export function renderGlossaryList(result: GlossaryListResult): string {
   if (result.outcome === "empty") {
     return "No glossary files found.\n";
   }
-  return renderDataList(result.items, result.dataDir);
+  let out = `Data dir: ${result.dataDir}\n\n`;
+  out += `${"LOCALE".padEnd(12)}  ${"LAST UPDATED".padEnd(12)}  ${"ENTRIES".padEnd(7)}  CUSTOM\n`;
+  out += `${"------".padEnd(12)}  ${"------------".padEnd(12)}  ${"-------".padEnd(7)}  ------\n`;
+  for (const item of result.items) {
+    out += `${item.locale.padEnd(12)}  ${item.lastUpdated.padEnd(12)}  ${String(item.entries).padEnd(7)}  ${item.hasCustom ? "yes" : "no"}\n`;
+  }
+  return out;
 }
 
 export function renderCoreList(result: CoreListResult): string {
@@ -183,6 +187,16 @@ export function renderCoreList(result: CoreListResult): string {
   }
   if (result.outcome === "empty") {
     return "No core translation files found.\n";
+  }
+  return renderDataList(result.items, result.dataDir);
+}
+
+export function renderTranslationsList(result: TranslationsListResult): string {
+  if (result.outcome === "dirNotFound") {
+    return `Translations directory not found: ${result.dir}\n`;
+  }
+  if (result.outcome === "empty") {
+    return "No translations cache files found.\n";
   }
   return renderDataList(result.items, result.dataDir);
 }

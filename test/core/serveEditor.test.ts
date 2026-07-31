@@ -18,6 +18,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: mkdtempSync(join(tmpdir(), "glot-glossary-")),
     promptsDir: mkdtempSync(join(tmpdir(), "glot-prompts-")),
     coreDir: mkdtempSync(join(tmpdir(), "glot-core-")),
+    translationsDir: mkdtempSync(join(tmpdir(), "glot-translations-")),
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,

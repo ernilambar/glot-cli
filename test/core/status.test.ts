@@ -18,6 +18,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: "",
     promptsDir: "",
     coreDir: "",
+    translationsDir: "",
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,
@@ -104,4 +105,27 @@ test("runStatus: core cache hits reported when lang given", (t) => {
   const p = writePo(statusPO);
   const result = runStatus(baseConfig(), p, "ne_NP");
   assert.deepEqual(result.coreCache, { lang: "ne_NP", hits: 1, untranslated: 1 });
+});
+
+test("runStatus: hit count combines core cache and custom translations cache", (t) => {
+  const originalCore = deps.loadCoreTranslations;
+  const originalTranslations = deps.loadTranslationsCache;
+  t.after(() => {
+    deps.loadCoreTranslations = originalCore;
+    deps.loadTranslationsCache = originalTranslations;
+  });
+  const p = writePo(`msgid ""
+msgstr ""
+
+msgid "Untranslated string"
+msgstr ""
+
+msgid "Another untranslated"
+msgstr ""
+`);
+  deps.loadCoreTranslations = () => ({ "Untranslated string": "core translation" });
+  deps.loadTranslationsCache = () => ({ "Another untranslated": "custom translation" });
+
+  const result = runStatus(baseConfig(), p, "ne_NP");
+  assert.deepEqual(result.coreCache, { lang: "ne_NP", hits: 2, untranslated: 2 });
 });

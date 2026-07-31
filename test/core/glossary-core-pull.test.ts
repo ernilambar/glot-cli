@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -20,6 +20,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: mkdtempSync(join(tmpdir(), "glot-glossary-")),
     promptsDir: "",
     coreDir: mkdtempSync(join(tmpdir(), "glot-core-")),
+    translationsDir: mkdtempSync(join(tmpdir(), "glot-translations-")),
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,
@@ -85,6 +86,18 @@ test("runGlossaryList: lists .tsv files with entry counts", () => {
   assert.equal(result.items.length, 1);
   assert.equal(result.items[0]!.locale, "ne_NP");
   assert.equal(result.items[0]!.entries, 2);
+  assert.equal(result.items[0]!.hasCustom, false);
+});
+
+test("runGlossaryList: flags locales with a custom glossary file", () => {
+  const config = baseConfig();
+  writeFileSync(join(config.glossaryDir, "ne_NP.tsv"), "en\tne_NP\npost\tपोस्ट\n");
+  mkdirSync(join(config.glossaryDir, "custom"));
+  writeFileSync(join(config.glossaryDir, "custom", "ne_NP.tsv"), "en\tne_NP\nwidget\tविजेट\n");
+  const result = runGlossaryList(config);
+  assert.equal(result.outcome, "listed");
+  if (result.outcome !== "listed") throw new Error("unreachable");
+  assert.equal(result.items[0]!.hasCustom, true);
 });
 
 test("runCoreList: directory not found", () => {
