@@ -1,6 +1,6 @@
 import type { GlotConfig } from "../config.ts";
 import { deps } from "../deps.ts";
-import { loadSystemPrompt } from "../core-translations.ts";
+import { loadMergedCoreCache, loadSystemPrompt } from "../core-translations.ts";
 import { GlotNotFoundError, GlotRuntimeError, GlotValidationError } from "../errors.ts";
 import { buildGlossaryIndex, loadGlossary, matchingGlossaryTerms } from "../glossary.ts";
 import { validateLang } from "../languages.ts";
@@ -46,7 +46,7 @@ export async function runApiTranslate(config: GlotConfig, input: ApiTranslateInp
   }
 
   if (input.mode !== "ai") {
-    const core = deps.loadCoreTranslations(config, input.lang);
+    const core = loadMergedCoreCache(config, input.lang);
     const cached = core[coreCacheKey({ msgCtxt: input.msgCtxt, msgId: input.msgId })];
 
     // A shape mismatch (array cached for a singular request, or vice versa)

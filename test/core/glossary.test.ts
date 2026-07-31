@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { buildGlossaryIndex, matchingGlossaryTerms, tokenize } from "../../src/core/glossary.ts";
+import { buildGlossaryIndex, loadGlossary, matchingGlossaryTerms, tokenize } from "../../src/core/glossary.ts";
 
 // ---------------------------------------------------------------------------
 // tokenize
@@ -16,6 +19,41 @@ test("tokenize: punctuation stripped", () => {
 
 test("tokenize: empty string", () => {
   assert.deepEqual(tokenize(""), []);
+});
+
+// ---------------------------------------------------------------------------
+// loadGlossary: core + custom merge
+// ---------------------------------------------------------------------------
+
+test("loadGlossary: custom dir absent is a no-op, core terms load as-is", () => {
+  const dir = mkdtempSync(join(tmpdir(), "glot-glossary-"));
+  writeFileSync(join(dir, "ne_NP.tsv"), "en\tne_NP\tpos\tdescription\npost\tपोस्ट\tnoun\t\n");
+  const g = loadGlossary(dir, "ne_NP");
+  assert.deepEqual(g, { post: [{ translation: "पोस्ट", pos: "noun", note: "" }] });
+});
+
+test("loadGlossary: custom-only term is added alongside core terms", () => {
+  const dir = mkdtempSync(join(tmpdir(), "glot-glossary-"));
+  writeFileSync(join(dir, "ne_NP.tsv"), "en\tne_NP\tpos\tdescription\npost\tपोस्ट\tnoun\t\n");
+  mkdirSync(join(dir, "custom"));
+  writeFileSync(join(dir, "custom", "ne_NP.tsv"), "en\tne_NP\tpos\tdescription\nwidget\tविजेट\t\t\n");
+  const g = loadGlossary(dir, "ne_NP");
+  assert.deepEqual(g, {
+    post: [{ translation: "पोस्ट", pos: "noun", note: "" }],
+    widget: [{ translation: "विजेट", pos: "", note: "" }],
+  });
+});
+
+test("loadGlossary: custom term wins whole-term on collision, replacing all core pos-variants", () => {
+  const dir = mkdtempSync(join(tmpdir(), "glot-glossary-"));
+  writeFileSync(
+    join(dir, "ne_NP.tsv"),
+    "en\tne_NP\tpos\tdescription\npost\tपोस्ट\tnoun\t\npost\tपोस्ट गर्नु\tverb\t\n",
+  );
+  mkdirSync(join(dir, "custom"));
+  writeFileSync(join(dir, "custom", "ne_NP.tsv"), "en\tne_NP\tpos\tdescription\npost\tकस्टम पोस्ट\t\t\n");
+  const g = loadGlossary(dir, "ne_NP");
+  assert.deepEqual(g, { post: [{ translation: "कस्टम पोस्ट", pos: "", note: "" }] });
 });
 
 // ---------------------------------------------------------------------------

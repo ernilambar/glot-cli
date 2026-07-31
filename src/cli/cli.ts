@@ -8,6 +8,7 @@ import { runReviewCommand } from "./commands/review.ts";
 import { runServeCommand } from "./commands/serve.ts";
 import { runStatusCommand } from "./commands/status.ts";
 import { runTranslateCommand } from "./commands/translate.ts";
+import { runTranslationsImportCommand, runTranslationsListCommand } from "./commands/translations.ts";
 import { loadConfigFromEnv } from "./env.ts";
 import { exit } from "./exit.ts";
 
@@ -17,7 +18,7 @@ USAGE
   glot <command> [options]
 
 COMMANDS
-  translate <file> [--lang <code>] [--limit <n>]
+  translate <file> --lang <code> [--limit <n>]
       Translate missing entries in a .po file.
 
   review <file> [--format text|table|json|csv|markdown]
@@ -33,12 +34,16 @@ COMMANDS
       Start a local read-only REST API (127.0.0.1 only).
 
   glossary list
-  glossary pull [<locale>]
+  glossary pull <locale>
       Manage glossary files.
 
   core list
-  core pull [<locale>]
+  core pull <locale>
       Manage core translation cache.
+
+  translations list
+  translations import <files...> --lang <code> [--mode overwrite|merge]
+      Manage the custom translations cache.
 
   -V, --version   Show version and exit.
   -h, --help      Show this help.
@@ -47,7 +52,7 @@ ENVIRONMENT
   GLOT_ENDPOINT_URL   OpenAI-compatible base URL, e.g. http://host/v1 (required)
   GLOT_MODEL_ID       Model ID (required)
   GLOT_API_KEY        API key (optional for local backends)
-  GLOT_LANG           Default target locale code (e.g. ne_NP)
+  GLOT_LANG           Default locale for read-only commands (status, browse); e.g. ne_NP
   GLOT_DATA_DIR       Data directory (default: ~/.config/glot-cli)
   GLOT_MAX_STRINGS    Max strings per translate run (default: 200)
   GLOT_BATCH_SIZE     Strings per API call (default: 10)
@@ -81,13 +86,13 @@ export async function runCli(argv: string[], config: GlotConfig = loadConfigFrom
       (y) =>
         y
           .positional("file", { type: "string", demandOption: true, describe: "Input .po file" })
-          .option("lang", { type: "string", default: config.lang, describe: "Target locale code (overrides GLOT_LANG)" })
+          .option("lang", { type: "string", default: "", describe: "Target locale code" })
           .option("limit", { type: "number", default: 0, describe: "Max strings this run (0 = GLOT_MAX_STRINGS)" })
           .option("debug", { type: "boolean", default: false, describe: "Show raw technical detail alongside error messages" }),
       async (args) => {
         const lang = args.lang as string;
         if (!lang) {
-          process.stderr.write("Error: --lang is required (or set GLOT_LANG env variable)\n");
+          process.stderr.write("Error: --lang is required\n");
           exit(2);
         }
         await runTranslateCommand(config, args.file as string, lang, args.limit as number, args.debug as boolean);
@@ -171,8 +176,15 @@ export async function runCli(argv: string[], config: GlotConfig = loadConfigFrom
           .command(
             "pull [locale]",
             "Pull a glossary file.",
-            (yy) => yy.positional("locale", { type: "string", default: config.lang }),
-            async (args) => runGlossaryPullCommand(config, (args.locale as string | undefined) ?? ""),
+            (yy) => yy.positional("locale", { type: "string" }),
+            async (args) => {
+              const locale = args.locale as string | undefined;
+              if (!locale) {
+                process.stderr.write("Error: locale is required\n");
+                exit(2);
+              }
+              await runGlossaryPullCommand(config, locale);
+            },
           )
           .demandCommand(1, "glossary requires a subcommand: list, pull"),
       () => {},
@@ -191,10 +203,58 @@ export async function runCli(argv: string[], config: GlotConfig = loadConfigFrom
           .command(
             "pull [locale]",
             "Pull core translations.",
-            (yy) => yy.positional("locale", { type: "string", default: config.lang }),
-            async (args) => runCorePullCommand(config, (args.locale as string | undefined) ?? ""),
+            (yy) => yy.positional("locale", { type: "string" }),
+            async (args) => {
+              const locale = args.locale as string | undefined;
+              if (!locale) {
+                process.stderr.write("Error: locale is required\n");
+                exit(2);
+              }
+              await runCorePullCommand(config, locale);
+            },
           )
           .demandCommand(1, "core requires a subcommand: list, pull"),
+      () => {},
+    )
+    .command(
+      "translations",
+      "Manage the custom translations cache.",
+      (y) =>
+        y
+          .command(
+            "list",
+            "List translations cache files.",
+            () => {},
+            () => runTranslationsListCommand(config),
+          )
+          .command(
+            "import [files...]",
+            "Import PO file(s) into the translations cache.",
+            (yy) =>
+              yy
+                .positional("files", { type: "string", array: true, describe: "PO files and/or directories of PO files" })
+                .option("lang", { type: "string", default: "", describe: "Target locale code" })
+                .option("mode", {
+                  type: "string",
+                  choices: ["overwrite", "merge"],
+                  default: "overwrite",
+                  describe: "overwrite replaces the existing cache from just these files; merge layers these files onto the existing cache",
+                }),
+            (args) => {
+              const lang = args.lang as string;
+              if (!lang) {
+                process.stderr.write("Error: --lang is required\n");
+                exit(2);
+              }
+              return runTranslationsImportCommand(
+                config,
+                lang,
+                args.files as string[],
+                args.mode as "overwrite" | "merge",
+              );
+            },
+          )
+          .demandCommand(1, "translations requires a subcommand: list, import"),
       () => {},
     )
     .demandCommand(1, "a command is required")

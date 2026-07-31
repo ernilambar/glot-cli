@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import type { IncomingMessage, Server } from "node:http";
 import { basename } from "node:path";
 import type { GlotConfig } from "../../core/config.ts";
-import { deps } from "../../core/deps.ts";
+import { loadMergedCoreCache } from "../../core/core-translations.ts";
 import { applyEditorEdits, buildEditorView, findCoreMatches, translateSingle } from "../../core/operations/serveEditor.ts";
 import { detectPluralCount } from "../../core/po/entry.ts";
 import { PoFile } from "../../core/po/poFile.ts";
@@ -24,7 +24,7 @@ function renderIndex(config: GlotConfig, input: string, lang: string, glotEnable
   const nplurals = detectPluralCount(pf.entries);
 
   if (lang !== "") {
-    const core = deps.loadCoreTranslations(config, lang);
+    const core = loadMergedCoreCache(config, lang);
     for (const row of rows) {
       if (row.entry.msgIdPlural === "") {
         row.coreMatches = findCoreMatches(core, row.entry.msgId);

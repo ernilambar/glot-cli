@@ -92,7 +92,7 @@ export async function runCorePull(
   onEvent?: (event: CorePullEvent) => void,
 ): Promise<CorePullResult> {
   if (locale === "") {
-    throw new GlotValidationError("locale is required (or set GLOT_LANG env variable)");
+    throw new GlotValidationError("locale is required");
   }
   validateLang(locale, deps.loadValidLanguages());
 

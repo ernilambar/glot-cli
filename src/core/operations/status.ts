@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import type { GlotConfig } from "../config.ts";
+import { loadMergedCoreCache } from "../core-translations.ts";
 import { deps } from "../deps.ts";
 import { GlotValidationError } from "../errors.ts";
 import { validateLang } from "../languages.ts";
@@ -46,7 +47,7 @@ export function runStatus(config: GlotConfig, input: string, lang: string): Stat
 
   let coreCache: CoreCacheStatus | null = null;
   if (lang !== "") {
-    const core = deps.loadCoreTranslations(config, lang);
+    const core = loadMergedCoreCache(config, lang);
     if (Object.keys(core).length > 0) {
       let hits = 0;
       for (const e of pf.translatableEntries()) {

@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { VERSION } from "../../core/config.ts";
 import type { GlotConfig } from "../../core/config.ts";
+import { loadMergedCoreCache } from "../../core/core-translations.ts";
 import { deps } from "../../core/deps.ts";
 import { GlotNotFoundError, GlotValidationError } from "../../core/errors.ts";
 import { buildGlossaryIndex, loadGlossary, matchingGlossaryTerms } from "../../core/glossary.ts";
@@ -14,6 +15,8 @@ import type { CoreListResult } from "../../core/operations/corePull.ts";
 import { runGlossaryList } from "../../core/operations/glossaryPull.ts";
 import type { GlossaryListResult } from "../../core/operations/glossaryPull.ts";
 import { findCoreMatches } from "../../core/operations/serveEditor.ts";
+import { runTranslationsList } from "../../core/operations/translationsImport.ts";
+import type { TranslationsListResult } from "../../core/operations/translationsImport.ts";
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -111,7 +114,7 @@ function endpointHost(endpointUrl: string): string | null {
 // runGlossaryList/runCoreList return a 3-way outcome (dirNotFound/empty/listed)
 // the CLI uses to print different messages; the API only needs "is there
 // anything," so all three collapse to [] or the items array.
-function flattenList(result: GlossaryListResult | CoreListResult): unknown[] {
+function flattenList(result: GlossaryListResult | CoreListResult | TranslationsListResult): unknown[] {
   return result.outcome === "listed" ? result.items : [];
 }
 
@@ -191,8 +194,13 @@ export function createApiServer(config: GlotConfig, token: string): Server {
         const lang = route[1]!;
         validateLang(lang, deps.loadValidLanguages());
         const msgid = url.searchParams.get("msgid") ?? "";
-        const core = deps.loadCoreTranslations(config, lang);
+        const core = loadMergedCoreCache(config, lang);
         sendJson(res, 200, findCoreMatches(core, msgid));
+        return;
+      }
+
+      if (req.method === "GET" && route.length === 1 && route[0] === "translations") {
+        sendJson(res, 200, flattenList(runTranslationsList(config)));
         return;
       }
 

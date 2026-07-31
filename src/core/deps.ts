@@ -1,5 +1,8 @@
 import { callAI as defaultCallAI } from "./ai-client.ts";
-import { loadCoreTranslations as defaultLoadCoreTranslations } from "./core-translations.ts";
+import {
+  loadCoreTranslations as defaultLoadCoreTranslations,
+  loadTranslationsCache as defaultLoadTranslationsCache,
+} from "./core-translations.ts";
 import { loadValidLanguages as defaultLoadValidLanguages } from "./languages.ts";
 
 // Mutable swap-point object: production code calls deps.callAI(...), never
@@ -9,5 +12,6 @@ import { loadValidLanguages as defaultLoadValidLanguages } from "./languages.ts"
 export const deps = {
   callAI: defaultCallAI,
   loadCoreTranslations: defaultLoadCoreTranslations,
+  loadTranslationsCache: defaultLoadTranslationsCache,
   loadValidLanguages: defaultLoadValidLanguages,
 };

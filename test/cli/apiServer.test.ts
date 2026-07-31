@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +21,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: mkdtempSync(join(tmpdir(), "glot-glossary-")),
     promptsDir: "",
     coreDir: mkdtempSync(join(tmpdir(), "glot-core-")),
+    translationsDir: mkdtempSync(join(tmpdir(), "glot-translations-")),
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,
@@ -217,6 +218,30 @@ test("GET /api/v1/glossary/:lang: returns parsed glossary terms", async () => {
   });
 });
 
+test("GET /api/v1/glossary: flags locales with a custom glossary file", async () => {
+  const config = baseConfig();
+  writeFileSync(join(config.glossaryDir, "ne_NP.tsv"), "en\tne_NP\npost\tपोस्ट\n");
+  mkdirSync(join(config.glossaryDir, "custom"));
+  writeFileSync(join(config.glossaryDir, "custom", "ne_NP.tsv"), "en\tne_NP\nwidget\tविजेट\n");
+  await withServer(config, async (base) => {
+    const res = await fetch(`${base}/api/v1/glossary`, { headers: AUTH });
+    const body = (await res.json()) as { locale: string; hasCustom: boolean }[];
+    assert.equal(body[0]!.hasCustom, true);
+  });
+});
+
+test("GET /api/v1/glossary/:lang: custom glossary term wins over core term on collision", async () => {
+  const config = baseConfig();
+  writeFileSync(join(config.glossaryDir, "ne_NP.tsv"), "en\tne_NP\tpos\tdescription\npost\tकोर पोस्ट\tnoun\t\n");
+  mkdirSync(join(config.glossaryDir, "custom"));
+  writeFileSync(join(config.glossaryDir, "custom", "ne_NP.tsv"), "en\tne_NP\tpos\tdescription\npost\tकस्टम पोस्ट\t\t\n");
+  await withServer(config, async (base) => {
+    const res = await fetch(`${base}/api/v1/glossary/ne_NP`, { headers: AUTH });
+    const body = (await res.json()) as Record<string, { translation: string }>;
+    assert.equal(body["post"]!.translation, "कस्टम पोस्ट");
+  });
+});
+
 test("GET /api/v1/glossary/:lang/match: unknown locale returns 400", async () => {
   await withServer(baseConfig(), async (base) => {
     const res = await fetch(`${base}/api/v1/glossary/xx_XX/match?text=post`, { headers: AUTH });
@@ -292,6 +317,42 @@ test("GET /api/v1/core/:lang: returns context-qualified matches, not just a dire
         { value: "खोजी गर्नुहोस्", ctxt: "menu" },
       ],
     );
+  });
+});
+
+test("GET /api/v1/core/:lang: custom translations cache wins over core cache on collision", async () => {
+  const config = baseConfig();
+  writeFileSync(join(config.coreDir, "ne_NP.json"), JSON.stringify({ Search: "core खोज" }));
+  writeFileSync(join(config.translationsDir, "ne_NP.json"), JSON.stringify({ Search: "custom खोज" }));
+  await withServer(config, async (base) => {
+    const res = await fetch(`${base}/api/v1/core/ne_NP?msgid=Search`, { headers: AUTH });
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { value: string; ctxt: string }[];
+    assert.deepEqual(body, [{ value: "custom खोज", ctxt: "" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/translations
+// ---------------------------------------------------------------------------
+
+test("GET /api/v1/translations: flattens an empty directory to []", async () => {
+  await withServer(baseConfig(), async (base) => {
+    const res = await fetch(`${base}/api/v1/translations`, { headers: AUTH });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), []);
+  });
+});
+
+test("GET /api/v1/translations: lists imported translations cache files", async () => {
+  const config = baseConfig();
+  writeFileSync(join(config.translationsDir, "ne_NP.json"), JSON.stringify({ Hello: "custom नमस्ते" }));
+  await withServer(config, async (base) => {
+    const res = await fetch(`${base}/api/v1/translations`, { headers: AUTH });
+    const body = (await res.json()) as { locale: string; entries: number }[];
+    assert.equal(body.length, 1);
+    assert.equal(body[0]!.locale, "ne_NP");
+    assert.equal(body[0]!.entries, 1);
   });
 });
 

@@ -18,6 +18,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: "",
     promptsDir: "",
     coreDir: "",
+    translationsDir: "",
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,

@@ -19,6 +19,7 @@ function baseConfig(overrides: Partial<GlotConfig> = {}): GlotConfig {
     glossaryDir: mkdtempSync(join(tmpdir(), "glot-glossary-")),
     promptsDir: mkdtempSync(join(tmpdir(), "glot-prompts-")),
     coreDir: mkdtempSync(join(tmpdir(), "glot-core-")),
+    translationsDir: mkdtempSync(join(tmpdir(), "glot-translations-")),
     maxStrings: 200,
     batchSize: 10,
     concurrency: 1,
@@ -124,6 +125,30 @@ test("runApiTranslate: mode cache-then-ai, cache hit skips AI", async (t) => {
   const result = await runApiTranslate(baseConfig(), baseInput());
   assert.deepEqual(result, { kind: "singular", translation: "नमस्ते", source: "core" });
   assert.equal(aiCalled, false);
+});
+
+test("runApiTranslate: mode cache-then-ai, custom translations cache hit skips AI", async (t) => {
+  let aiCalled = false;
+  withDeps(t, {
+    loadCoreTranslations: () => ({}),
+    loadTranslationsCache: () => ({ Hello: "custom नमस्ते" }),
+    callAI: async () => {
+      aiCalled = true;
+      return { content: "", usage: null };
+    },
+  });
+  const result = await runApiTranslate(baseConfig(), baseInput());
+  assert.deepEqual(result, { kind: "singular", translation: "custom नमस्ते", source: "core" });
+  assert.equal(aiCalled, false);
+});
+
+test("runApiTranslate: custom translations cache wins over core cache on collision", async (t) => {
+  withDeps(t, {
+    loadCoreTranslations: () => ({ Hello: "core नमस्ते" }),
+    loadTranslationsCache: () => ({ Hello: "custom नमस्ते" }),
+  });
+  const result = await runApiTranslate(baseConfig(), baseInput());
+  assert.deepEqual(result, { kind: "singular", translation: "custom नमस्ते", source: "core" });
 });
 
 test("runApiTranslate: mode cache-then-ai, cache miss falls through to AI", async (t) => {

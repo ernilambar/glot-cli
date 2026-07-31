@@ -10,6 +10,7 @@ export interface GlossaryListItem {
   locale: string;
   lastUpdated: string;
   entries: number;
+  hasCustom: boolean;
 }
 
 export type GlossaryListResult =
@@ -47,10 +48,12 @@ export function runGlossaryList(config: GlotConfig): GlossaryListResult {
     const path = join(config.glossaryDir, name);
     const mtime = statSync(path).mtime;
     const count = Math.max(0, countLines(path) - 1);
+    const locale = name.slice(0, -".tsv".length);
     return {
-      locale: name.slice(0, -".tsv".length),
+      locale,
       lastUpdated: mtime.toISOString().slice(0, 10),
       entries: count,
+      hasCustom: existsSync(join(config.glossaryDir, "custom", `${locale}.tsv`)),
     };
   });
 
@@ -130,7 +133,7 @@ export async function runGlossaryPull(
   onEvent?: (event: GlossaryPullEvent) => void,
 ): Promise<GlossaryPullResult> {
   if (locale === "") {
-    throw new GlotValidationError("locale is required (or set GLOT_LANG env variable)");
+    throw new GlotValidationError("locale is required");
   }
   validateLang(locale, deps.loadValidLanguages());
 
