@@ -45,6 +45,14 @@ Endpoints (all under `/api/v1`):
 | `GET` | `/translations` | List imported custom translations cache files |
 | `POST` | `/translate` | Cache-then-AI translate (singular or plural); `mode`: `cache`, `cache-then-ai` (default), or `ai` |
 
+`/translate` responds with `{ "translation": "...", "source": "..." }` (or `"translations"` for plural), where `source` is one of:
+
+| `source` | Meaning |
+|---|---|
+| `core` | Exact `msgid`/`msgctxt` match in the cache |
+| `core-fuzzy` | Cache match found only by ignoring case — review before trusting it blindly |
+| `ai` | No cache match; translated on the fly |
+
 Errors use RFC 7807 (`application/problem+json`): `{ "title": "...", "status": 400, "detail": "..." }`.
 
 ## Run in the background with pm2

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { GlotConfig } from "../../src/core/config.ts";
 import {
+  buildCoreCacheFold,
   loadCoreTranslations,
   loadMergedCoreCache,
   loadSystemPrompt,
@@ -93,6 +94,14 @@ test("loadMergedCoreCache: goes through deps, so swapped deps are honored", () =
     deps.loadCoreTranslations = originalCore;
     deps.loadTranslationsCache = originalTranslations;
   }
+});
+
+test("buildCoreCacheFold: lowercases keys for case-insensitive lookup", () => {
+  assert.deepEqual(buildCoreCacheFold({ Post: "पोस्ट" }), { post: "पोस्ट" });
+});
+
+test("buildCoreCacheFold: first entry wins on a lowercase collision", () => {
+  assert.deepEqual(buildCoreCacheFold({ Post: "first", post: "second" }), { post: "first" });
 });
 
 test("loadSystemPrompt: missing file returns empty string", () => {

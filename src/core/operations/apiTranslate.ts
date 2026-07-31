@@ -1,6 +1,6 @@
 import type { GlotConfig } from "../config.ts";
 import { deps } from "../deps.ts";
-import { loadMergedCoreCache, loadSystemPrompt } from "../core-translations.ts";
+import { buildCoreCacheFold, loadMergedCoreCache, loadSystemPrompt } from "../core-translations.ts";
 import { GlotNotFoundError, GlotRuntimeError, GlotValidationError } from "../errors.ts";
 import { buildGlossaryIndex, loadGlossary, matchingGlossaryTerms } from "../glossary.ts";
 import { validateLang } from "../languages.ts";
@@ -21,8 +21,8 @@ export interface ApiTranslateInput {
 }
 
 export type ApiTranslateResult =
-  | { kind: "singular"; translation: string; source: "core" | "ai" }
-  | { kind: "plural"; translations: string[]; source: "core" | "ai" };
+  | { kind: "singular"; translation: string; source: "core" | "core-fuzzy" | "ai" }
+  | { kind: "plural"; translations: string[]; source: "core" | "core-fuzzy" | "ai" };
 
 export async function runApiTranslate(config: GlotConfig, input: ApiTranslateInput): Promise<ApiTranslateResult> {
   validateLang(input.lang, deps.loadValidLanguages());
@@ -47,16 +47,22 @@ export async function runApiTranslate(config: GlotConfig, input: ApiTranslateInp
 
   if (input.mode !== "ai") {
     const core = loadMergedCoreCache(config, input.lang);
-    const cached = core[coreCacheKey({ msgCtxt: input.msgCtxt, msgId: input.msgId })];
+    const key = coreCacheKey({ msgCtxt: input.msgCtxt, msgId: input.msgId });
+    let cached = core[key];
+    let source: "core" | "core-fuzzy" = "core";
+    if (cached === undefined) {
+      cached = buildCoreCacheFold(core)[key.toLowerCase()];
+      source = "core-fuzzy";
+    }
 
     // A shape mismatch (array cached for a singular request, or vice versa)
     // is treated as a miss rather than an error — same rule as the CLI's
     // core-hit loop in translate.ts.
     if (isPlural && Array.isArray(cached)) {
-      return { kind: "plural", translations: cached, source: "core" };
+      return { kind: "plural", translations: cached, source };
     }
     if (!isPlural && typeof cached === "string" && cached !== "") {
-      return { kind: "singular", translation: cached, source: "core" };
+      return { kind: "singular", translation: cached, source };
     }
 
     if (input.mode === "cache") {

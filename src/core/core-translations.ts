@@ -34,6 +34,20 @@ export function loadMergedCoreCache(config: GlotConfig, locale: string): Record<
   };
 }
 
+// Lowercased-key index over a merged cache, for case-insensitive fallback
+// lookups. First entry wins on a lowercase collision — this index only
+// backs a "no exact match" fallback, so it never needs to represent both.
+export function buildCoreCacheFold(core: Record<string, string | string[]>): Record<string, string | string[]> {
+  const fold: Record<string, string | string[]> = {};
+  for (const [key, value] of Object.entries(core)) {
+    const folded = key.toLowerCase();
+    if (!(folded in fold)) {
+      fold[folded] = value;
+    }
+  }
+  return fold;
+}
+
 export function loadSystemPrompt(config: GlotConfig, targetLang: string): string {
   const path = join(config.promptsDir, `${targetLang}.md`);
   if (!existsSync(path)) {

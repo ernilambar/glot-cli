@@ -209,6 +209,50 @@ test("runApiTranslate: mode ai skips the cache even on a hit", async (t) => {
 });
 
 // ---------------------------------------------------------------------------
+// Case-insensitive fallback (core-fuzzy)
+// ---------------------------------------------------------------------------
+
+test("runApiTranslate: exact-case miss falls back to case-insensitive match, tagged core-fuzzy", async (t) => {
+  let aiCalled = false;
+  withDeps(t, {
+    loadCoreTranslations: () => ({ Post: "पोस्ट" }),
+    callAI: async () => {
+      aiCalled = true;
+      return { content: "", usage: null };
+    },
+  });
+  const result = await runApiTranslate(baseConfig(), baseInput({ msgId: "post" }));
+  assert.deepEqual(result, { kind: "singular", translation: "पोस्ट", source: "core-fuzzy" });
+  assert.equal(aiCalled, false);
+});
+
+test("runApiTranslate: exact match wins over a case-insensitive candidate", async (t) => {
+  withDeps(t, { loadCoreTranslations: () => ({ Post: "core Post", post: "core post" }) });
+  const result = await runApiTranslate(baseConfig(), baseInput({ msgId: "post" }));
+  assert.deepEqual(result, { kind: "singular", translation: "core post", source: "core" });
+});
+
+test("runApiTranslate: mode cache with only a case-insensitive candidate still returns it, never calls AI", async (t) => {
+  let aiCalled = false;
+  withDeps(t, {
+    loadCoreTranslations: () => ({ Post: "पोस्ट" }),
+    callAI: async () => {
+      aiCalled = true;
+      return { content: "", usage: null };
+    },
+  });
+  const result = await runApiTranslate(baseConfig(), baseInput({ msgId: "post", mode: "cache" }));
+  assert.deepEqual(result, { kind: "singular", translation: "पोस्ट", source: "core-fuzzy" });
+  assert.equal(aiCalled, false);
+});
+
+test("runApiTranslate: case-insensitive fallback also applies to plural entries", async (t) => {
+  withDeps(t, { loadCoreTranslations: () => ({ "%d Item": ["%d वस्तु", "%d वस्तुहरू"] }) });
+  const result = await runApiTranslate(baseConfig(), pluralInput({ msgId: "%d item" }));
+  assert.deepEqual(result, { kind: "plural", translations: ["%d वस्तु", "%d वस्तुहरू"], source: "core-fuzzy" });
+});
+
+// ---------------------------------------------------------------------------
 // Shape mismatch — treated as a miss, not an error
 // ---------------------------------------------------------------------------
 
