@@ -60,4 +60,6 @@ Custom terms merge with the core glossary; on a collision, the custom entry wins
 
 ### Custom system prompt
 
-Place a file at `$GLOT_DATA_DIR/prompts/<locale>.md` (default: `~/.config/glot-cli/prompts/<locale>.md`) to override the default prompt for a locale.
+Place a file at `$GLOT_DATA_DIR/prompts/<locale>.md` (default: `~/.config/glot-cli/prompts/<locale>.md`) to set persona or tone for a locale (e.g. "use a formal, respectful register").
+
+This is sent as a separate `system` message alongside glot-cli's own instructions — it adds tone/persona, it does not replace glot-cli's WordPress i18n rules (placeholder preservation, passthrough for URLs/paths, glossary enforcement). Those rules are WordPress technical conventions, not a locale-specific stylistic choice, so they're always applied regardless of whether a custom prompt file exists.

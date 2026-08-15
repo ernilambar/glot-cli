@@ -5,7 +5,7 @@ import type { GlotConfig } from "../config.ts";
 import { deps } from "../deps.ts";
 import { GlotRuntimeError, GlotValidationError } from "../errors.ts";
 import { buildGlossaryIndex, loadGlossary, matchingGlossaryTerms } from "../glossary.ts";
-import { validateLang } from "../languages.ts";
+import { languageName, validateLang } from "../languages.ts";
 import { coreCacheKey, detectPluralCount, isTranslated } from "../po/entry.ts";
 import { PoFile } from "../po/poFile.ts";
 import type { Entry } from "../po/types.ts";
@@ -67,7 +67,9 @@ export async function runTranslate(
     throw new GlotValidationError(`required environment variable(s) not set: ${missingEnv.join(", ")}`);
   }
 
-  validateLang(lang, deps.loadValidLanguages());
+  const validLangs = deps.loadValidLanguages();
+  validateLang(lang, validLangs);
+  const langName = languageName(lang, validLangs);
 
   if (!existsSync(input)) {
     throw new GlotValidationError(`file not found: ${input}`);
@@ -212,7 +214,7 @@ export async function runTranslate(
         if (u.isPlural) {
           const e = c[0]!;
           const matches = matchingGlossaryTerms(e.msgId, glossary, glossaryIdx, e.msgCtxt);
-          const prompt = buildPluralPrompt(e.msgId, e.msgIdPlural, nplurals, matches, lang, systemPrompt, e.msgCtxt, e.extractedComments.join(" "));
+          const prompt = buildPluralPrompt(e.msgId, e.msgIdPlural, nplurals, matches, langName, e.msgCtxt, e.extractedComments.join(" "));
 
           let translations: string[];
           try {
@@ -259,7 +261,7 @@ export async function runTranslate(
           msgCtxt: e.msgCtxt,
           comment: e.extractedComments.join(" "),
         }));
-        const prompt = buildBatchPrompt(items, lang, systemPrompt);
+        const prompt = buildBatchPrompt(items, langName);
 
         let translations: string[];
         try {

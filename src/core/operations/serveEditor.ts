@@ -2,6 +2,7 @@ import type { GlotConfig } from "../config.ts";
 import { deps } from "../deps.ts";
 import { GlotRuntimeError } from "../errors.ts";
 import { buildGlossaryIndex, loadGlossary, matchingGlossaryTerms } from "../glossary.ts";
+import { languageName } from "../languages.ts";
 import { loadSystemPrompt } from "../core-translations.ts";
 import { isFuzzy, isTranslated } from "../po/entry.ts";
 import type { PoFile } from "../po/poFile.ts";
@@ -103,8 +104,9 @@ export async function translateSingle(config: GlotConfig, msgId: string, lang: s
   const glossaryIdx = buildGlossaryIndex(glossary);
   const systemPrompt = loadSystemPrompt(config, lang);
   const matches = matchingGlossaryTerms(msgId, glossary, glossaryIdx);
+  const langName = languageName(lang, deps.loadValidLanguages());
 
-  const prompt = buildBatchPrompt([{ msgId, matches }], lang, systemPrompt);
+  const prompt = buildBatchPrompt([{ msgId, matches }], langName);
   const result = await deps.callAI(config, prompt, systemPrompt, 0.1);
   const [translation] = parseBatchResponse(result.content, 1);
 

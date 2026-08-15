@@ -3,7 +3,7 @@ import { deps } from "../deps.ts";
 import { buildCoreCacheFold, loadMergedCoreCache, loadSystemPrompt } from "../core-translations.ts";
 import { GlotNotFoundError, GlotRuntimeError, GlotValidationError } from "../errors.ts";
 import { buildGlossaryIndex, loadGlossary, matchingGlossaryTerms } from "../glossary.ts";
-import { validateLang } from "../languages.ts";
+import { languageName, validateLang } from "../languages.ts";
 import { coreCacheKey } from "../po/entry.ts";
 import { buildBatchPrompt, buildPluralPrompt, parseBatchResponse, parsePluralResponse } from "../prompts.ts";
 
@@ -25,7 +25,9 @@ export type ApiTranslateResult =
   | { kind: "plural"; translations: string[]; source: "core" | "core-fuzzy" | "ai" };
 
 export async function runApiTranslate(config: GlotConfig, input: ApiTranslateInput): Promise<ApiTranslateResult> {
-  validateLang(input.lang, deps.loadValidLanguages());
+  const validLangs = deps.loadValidLanguages();
+  validateLang(input.lang, validLangs);
+  const langName = languageName(input.lang, validLangs);
 
   const isPlural = input.msgIdPlural !== undefined;
   if (isPlural && input.nplurals === undefined) {
@@ -81,8 +83,7 @@ export async function runApiTranslate(config: GlotConfig, input: ApiTranslateInp
       input.msgIdPlural!,
       input.nplurals!,
       matches,
-      input.lang,
-      systemPrompt,
+      langName,
       input.msgCtxt,
       input.comment ?? "",
     );
@@ -96,8 +97,7 @@ export async function runApiTranslate(config: GlotConfig, input: ApiTranslateInp
 
   const prompt = buildBatchPrompt(
     [{ msgId: input.msgId, matches, msgCtxt: input.msgCtxt, comment: input.comment ?? "" }],
-    input.lang,
-    systemPrompt,
+    langName,
   );
   const result = await deps.callAI(config, prompt, systemPrompt, 0.1);
   const [translation] = parseBatchResponse(result.content, 1);
