@@ -31,7 +31,12 @@ function renderNumberedItem(it: BatchItem, i: number): string {
 const FORMAT_INSTRUCTION =
   'Return ONLY a JSON object mapping number strings to translations: {"1": "...", "2": "..."}. No explanation, no extra text.';
 
-export function buildBatchPrompt(items: BatchItem[], targetLang: string, systemPrompt: string): string {
+// The rules below are WordPress i18n technical conventions (placeholder
+// safety, passthrough, glossary enforcement) — not a stylistic choice, so
+// they're always included regardless of a custom system prompt. A custom
+// prompt (see loadSystemPrompt) supplies persona/tone via the AI's `system`
+// role on top of this, it never replaces this technical contract.
+export function buildBatchPrompt(items: BatchItem[], targetLang: string): string {
   // Deduplicate glossary terms while preserving first-seen order.
   const seenOrder: string[] = [];
   const seenInfo: Record<string, GlossaryTerm> = {};
@@ -46,16 +51,6 @@ export function buildBatchPrompt(items: BatchItem[], targetLang: string, systemP
 
   const numbered = items.map((it, i) => renderNumberedItem(it, i)).join("\n");
   const hasAnnotations = items.some((it) => (it.msgCtxt?.trim() ?? "") !== "" || (it.comment?.trim() ?? "") !== "");
-
-  if (systemPrompt !== "") {
-    let glossaryBlock = "";
-    if (seenOrder.length > 0) {
-      const lines = seenOrder.map((t) => `${t} = ${seenInfo[t]!.translation}`);
-      glossaryBlock = `Approved terms:\n${lines.join("\n")}\n\n`;
-    }
-    const annotationBlock = hasAnnotations ? `${ANNOTATION_RULE}\n\n` : "";
-    return `${glossaryBlock}${annotationBlock}Translate each numbered string:\n${numbered}\n\n${FORMAT_INSTRUCTION}`;
-  }
 
   let glossaryBlock = "";
   if (seenOrder.length > 0) {
@@ -91,7 +86,6 @@ export function buildPluralPrompt(
   nplurals: number,
   matches: TermMatch[],
   targetLang: string,
-  systemPrompt: string,
   msgCtxt = "",
   comment = "",
 ): string {
@@ -107,16 +101,6 @@ export function buildPluralPrompt(
   }
   const hasAnnotations = annotationLines !== "";
   const forms = `${annotationLines}Singular English form: ${msgId}\nPlural English form: ${msgIdPlural}`;
-
-  if (systemPrompt !== "") {
-    let glossaryBlock = "";
-    if (matches.length > 0) {
-      const lines = matches.map((m) => `${m.term} = ${m.info.translation}`);
-      glossaryBlock = `Approved terms:\n${lines.join("\n")}\n\n`;
-    }
-    const annotationBlock = hasAnnotations ? `${ANNOTATION_RULE}\n\n` : "";
-    return `${glossaryBlock}${annotationBlock}Translate this string into exactly ${nplurals} grammatical plural forms:\n${forms}\n\n${formatInstruction}`;
-  }
 
   let glossaryBlock = "";
   if (matches.length > 0) {

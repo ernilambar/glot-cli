@@ -10,3 +10,10 @@ export function validateLang(lang: string, langs: Record<string, string>): void 
     throw new GlotValidationError(`unknown locale '${lang}'.`);
   }
 }
+
+// Human-readable name for a locale code (e.g. "ne_NP" -> "Nepali") — for AI
+// prompts, where a name is more reliably understood than a WP-convention
+// locale code. Falls back to the code itself if unknown.
+export function languageName(lang: string, langs: Record<string, string>): string {
+  return langs[lang] ?? lang;
+}
