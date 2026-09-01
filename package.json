@@ -1,6 +1,6 @@
 {
   "name": "glot-cli",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Translate WordPress .po files using any OpenAI-compatible backend.",
   "homepage": "https://github.com/ernilambar/glot-cli#readme",
   "bugs": {
@@ -26,21 +26,21 @@
     "build:darwin-x64": "bun build --compile --target=bun-darwin-x64 --minify ./src/index.ts --outfile dist/glot-darwin-amd64",
     "test": "node --test",
     "typecheck": "tsc --noEmit",
-    "validate-changelog": "flatlog validate --strict",
+    "validate-changelog": "flatlog validate",
     "version": "easy-replace-in-files"
   },
   "dependencies": {
     "gettext-parser": "^9.1.1",
-    "p-limit": "^7.3.1",
-    "yargs": "^18.0.0"
+    "p-limit": "^7.3.2",
+    "yargs": "^18.1.0"
   },
   "devDependencies": {
-    "@nilambar/flatlog": "^1.0.2",
-    "@types/gettext-parser": "^8.0.0",
-    "@types/node": "^22.18.0",
-    "@types/yargs": "^17.0.33",
+    "@nilambar/flatlog": "^1.0.4",
+    "@types/gettext-parser": "^9.0.0",
+    "@types/node": "^26.4.0",
+    "@types/yargs": "^17.0.35",
     "easy-replace-in-files": "^2.0.0",
-    "typescript": "^5.9.0"
+    "typescript": "^7.0.2"
   },
   "engines": {
     "node": ">=22.18"

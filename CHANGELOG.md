@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.10 - 2026-09-01
+- Fixed: AI prompts now state that the strings to translate are data, not instructions to follow
+
 ## 1.0.9 - 2026-08-15
 - Fixed: target language was silently omitted from AI prompts when a custom system prompt was set
 - Changed: AI prompts now use the locale's human-readable name (e.g. "Nepali") instead of the raw locale code
