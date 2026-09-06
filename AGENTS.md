@@ -16,9 +16,8 @@ Requires Node.js >= 22.18 and Bun installed.
 
 ```bash
 bun run build      # Compile to single binary at dist/glot
-node src/index.ts <command> [options]   # Run from source
-node --test        # Run test suite
-npm run typecheck  # Type-check without emitting (tsc --noEmit)
+bun test           # Run test suite
+bunx tsc --noEmit  # Type-check without emitting
 ```
 
 No linter or formatter is configured. Follow existing code style.
@@ -43,7 +42,7 @@ No linter or formatter is configured. Follow existing code style.
 Run in order. All must exit 0 before declaring work complete:
 
 ```bash
-npm run typecheck
-node --test
+bunx tsc --noEmit
+bun test
 bun run build
 ```
