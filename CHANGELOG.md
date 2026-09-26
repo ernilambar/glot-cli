@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.11 - 2026-09-26
+- Fixed: macOS release binaries are now code-signed
+
 ## 1.0.10 - 2026-09-01
 - Fixed: AI prompts now state that the strings to translate are data, not instructions to follow
 

@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     strategy:
       matrix:
         include:
@@ -30,6 +30,15 @@ jobs:
         run: |
           mkdir -p dist
           bun build --compile --target=${{ matrix.target }} --minify ./src/index.ts --outfile dist/glot-${{ matrix.suffix }}
+
+      - name: Sign and verify
+        run: |
+          codesign --force --sign - dist/glot-${{ matrix.suffix }}
+          codesign --verify dist/glot-${{ matrix.suffix }}
+
+      - name: Verify binary runs
+        if: matrix.suffix == 'darwin-arm64'
+        run: ./dist/glot-${{ matrix.suffix }} --version
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
