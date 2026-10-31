@@ -7,9 +7,9 @@
 - Fixed: AI prompts now state that the strings to translate are data, not instructions to follow
 
 ## 1.0.9 - 2026-08-15
-- Fixed: target language was silently omitted from AI prompts when a custom system prompt was set
 - Changed: AI prompts now use the locale's human-readable name (e.g. "Nepali") instead of the raw locale code
 - Changed: WordPress i18n rules (placeholders, passthrough, glossary) are now always sent to the AI
+- Fixed: target language was silently omitted from AI prompts when a custom system prompt was set
 
 ## 1.0.8 - 2026-07-31
 - Added: custom glossary support via `glossary/custom/<locale>.tsv`, merged with the core glossary (custom wins)
@@ -25,14 +25,14 @@
 - Fixed: review no longer flags URL-only and email-only strings as issues
 
 ## 1.0.5 - 2026-07-26
+- Added: optional `comment` field on `POST /translate`
 - Fixed: `msgctxt` now reaches AI translation prompts, not just the cache lookup
 - Fixed: PO translator comments (`#.`) now reach AI translation prompts
-- Added: optional `comment` field on `POST /translate`
 
 ## 1.0.4 - 2026-07-25
 - Added: `serve` sub-command to REST API
-- Fixed: `glot translate` now AI-translates plural strings that miss the core cache
 - Changed: hide redundant single-match suggestions
+- Fixed: `glot translate` now AI-translates plural strings that miss the core cache
 
 ## 1.0.3 - 2026-07-23
 - Added: `browse` sub-command to open PO file in the browser.
@@ -41,8 +41,8 @@
 - Fixed: `--lang` (and other flags) were silently ignored when passed after the positional file argument.
 
 ## 1.0.1 - 2026-07-22
-- Fixed: enforce JSON output format
 - Added: `--debug` flag on `translate`/`review` to show additional debug info
+- Fixed: enforce JSON output format
 
 ## 1.0.0 - 2026-07-17
 - Initial release

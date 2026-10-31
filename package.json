@@ -30,14 +30,14 @@
     "version": "easy-replace-in-files"
   },
   "dependencies": {
-    "gettext-parser": "^9.1.1",
-    "p-limit": "^7.3.2",
-    "yargs": "^18.1.0"
+    "gettext-parser": "^10.0.0",
+    "p-limit": "^7.3.3",
+    "yargs": "^18.2.0"
   },
   "devDependencies": {
-    "@nilambar/flatlog": "^1.0.4",
+    "@nilambar/flatlog": "^2.0.1",
     "@types/gettext-parser": "^9.0.0",
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.6.6",
     "@types/yargs": "^17.0.35",
     "easy-replace-in-files": "^2.0.0",
     "typescript": "^7.0.2"
