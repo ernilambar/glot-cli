@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- Fixed: AI requests to OpenCode endpoints now send a stable `x-opencode-session` header, required by OpenCode Go
+- Fixed: AI error messages now include the provider's own error text instead of only generic guidance
+
 ## 1.0.11 - 2026-09-26
 - Fixed: macOS release binaries are now code-signed
 
