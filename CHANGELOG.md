@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.12 - 2026-11-22
 - Fixed: AI requests to OpenCode endpoints now send a stable `x-opencode-session` header, required by OpenCode Go
 - Fixed: AI error messages now include the provider's own error text instead of only generic guidance
 
